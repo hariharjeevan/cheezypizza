@@ -13,10 +13,9 @@ import {
 } from '../messages'
 import { z } from 'zod'
 import { getFileName } from '../fs'
-import { setRotating } from './useRotatingSpinner'
 
-// TODO(@kern): Test for better values
-export const MAX_CHUNK_SIZE = 256 * 1024 // 256 KB
+export const MAX_CHUNK_SIZE = 64 * 1024 // 64 KB
+const WINDOW_SIZE = 8
 
 export function isFinalChunk(offset: number, fileSize: number): boolean {
   return offset + MAX_CHUNK_SIZE >= fileSize
@@ -71,7 +70,14 @@ export function useUploaderConnections(
         return
       }
 
-      let sendChunkTimeout: NodeJS.Timeout | null = null
+      let currentFileName: string | null = null
+      let currentFileSize = 0
+      let nextOffset = 0
+      let outstandingChunks = 0
+      let finalChunkSent = false
+      let paused = false
+      let sendWindow: (() => void) | null = null
+
       const newConn = {
         status: UploaderConnectionStatus.Pending,
         dataConnection: conn,
@@ -226,7 +232,7 @@ export function useUploaderConnections(
 
             case MessageType.Start: {
               const fileName = message.fileName
-              let offset = message.offset
+              const offset = message.offset
               console.log(
                 '[UploaderConnections] starting transfer of',
                 fileName,
@@ -235,52 +241,44 @@ export function useUploaderConnections(
               )
               const file = validateOffset(files, fileName, offset)
 
-              let chunkCount = 0
-              const sendNextChunkAsync = () => {
-                sendChunkTimeout = setTimeout(() => {
-                  const end = Math.min(file.size, offset + MAX_CHUNK_SIZE)
-                  const final = isFinalChunk(offset, file.size)
-                  chunkCount++
+              currentFileName = fileName
+              currentFileSize = file.size
+              nextOffset = offset
+              outstandingChunks = 0
+              finalChunkSent = false
+              paused = false
+
+              sendWindow = () => {
+                while (
+                  !paused &&
+                  !finalChunkSent &&
+                  outstandingChunks < WINDOW_SIZE
+                ) {
+                  const end = Math.min(file.size, nextOffset + MAX_CHUNK_SIZE)
+                  const final = isFinalChunk(nextOffset, file.size)
+                  const chunkOffset = nextOffset
+                  const chunkIndex = outstandingChunks + 1
+
                   // Log for e2e testing
                   console.log(
-                    `[UploaderConnections] sending chunk ${chunkCount} for ${fileName} (${offset}-${end}/${file.size}) final=${final}`,
+                    `[UploaderConnections] sending chunk ${chunkIndex} for ${fileName} (${chunkOffset}-${end}/${file.size}) final=${final}`,
                   )
+
                   const request: Message = {
                     type: MessageType.Chunk,
                     fileName,
-                    offset,
-                    bytes: file.slice(offset, end),
+                    offset: chunkOffset,
+                    bytes: file.slice(chunkOffset, end),
                     final,
                   }
                   conn.send(request)
+                  outstandingChunks++
+                  nextOffset = end
 
-                  updateConnection((draft) => {
-                    offset = end
-                    if (final) {
-                      console.log(
-                        '[UploaderConnections] completed file',
-                        fileName,
-                        '- file',
-                        draft.completedFiles + 1,
-                        'of',
-                        draft.totalFiles,
-                      )
-                      return {
-                        ...draft,
-                        status: UploaderConnectionStatus.Ready,
-                        completedFiles: draft.completedFiles + 1,
-                        currentFileProgress: 0,
-                      }
-                    } else {
-                      sendNextChunkAsync()
-                      return {
-                        ...draft,
-                        uploadingOffset: end,
-                        currentFileProgress: end / file.size,
-                      }
-                    }
-                  })
-                }, 0)
+                  if (final) {
+                    finalChunkSent = true
+                  }
+                }
               }
 
               updateConnection((draft) => {
@@ -291,16 +289,17 @@ export function useUploaderConnections(
                   return draft
                 }
 
-                sendNextChunkAsync()
-
-                return {
+                const updated = {
                   ...draft,
                   status: UploaderConnectionStatus.Uploading,
                   uploadingFileName: fileName,
-                  uploadingOffset: offset,
-                  acknowledgedBytes: 0, // Reset acknowledged bytes for new file
-                  currentFileProgress: 0, // Progress based on acks, not sends
+                  uploadingOffset: nextOffset,
+                  acknowledgedBytes: 0,
+                  currentFileProgress: 0,
                 }
+
+                sendWindow?.()
+                return updated
               })
 
               break
@@ -308,14 +307,10 @@ export function useUploaderConnections(
 
             case MessageType.Pause: {
               console.log('[UploaderConnections] transfer paused')
+              paused = true
               updateConnection((draft) => {
                 if (draft.status !== UploaderConnectionStatus.Uploading) {
                   return draft
-                }
-
-                if (sendChunkTimeout) {
-                  clearTimeout(sendChunkTimeout)
-                  sendChunkTimeout = null
                 }
 
                 return {
@@ -337,14 +332,18 @@ export function useUploaderConnections(
                 ackMessage.bytesReceived,
               )
 
+              if (ackMessage.fileName === currentFileName) {
+                outstandingChunks = Math.max(0, outstandingChunks - 1)
+              }
+
               updateConnection((draft) => {
                 const currentAcked = draft.acknowledgedBytes || 0
                 const newAcked = currentAcked + ackMessage.bytesReceived
 
-                // Find the file to calculate progress
                 const file = files.find(
                   (f) => getFileName(f) === ackMessage.fileName,
                 )
+
                 if (file) {
                   const acknowledgedProgress = newAcked / file.size
                   return {
@@ -359,6 +358,21 @@ export function useUploaderConnections(
                   acknowledgedBytes: newAcked,
                 }
               })
+
+              if (ackMessage.fileName === currentFileName) {
+                if (!paused) {
+                  sendWindow?.()
+                }
+
+                if (finalChunkSent && outstandingChunks === 0) {
+                  updateConnection((draft) => ({
+                    ...draft,
+                    status: UploaderConnectionStatus.Ready,
+                    completedFiles: draft.completedFiles + 1,
+                    currentFileProgress: 0,
+                  }))
+                }
+              }
               break
             }
 
@@ -387,9 +401,6 @@ export function useUploaderConnections(
 
       const onClose = (): void => {
         console.log('[UploaderConnections] connection closed')
-        if (sendChunkTimeout) {
-          clearTimeout(sendChunkTimeout)
-        }
 
         updateConnection((draft) => {
           if (

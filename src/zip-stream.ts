@@ -60,8 +60,27 @@ const pump = (zipObj) =>
     zipObj.ctrl.enqueue(outputData)
   })
 
+type ZipEntry = {
+  name: string
+  size?: number
+  stream?: () => ReadableStream<Uint8Array>
+  directory?: boolean
+  lastModified?: number
+  comment?: string
+}
+
+type ZipWriter = {
+  enqueue(entry: ZipEntry): void
+  close(): void
+}
+
+type ZipUnderlyingSource = {
+  start?: (ctrl: ZipWriter) => void
+  pull?: (ctrl: ZipWriter) => void
+}
+
 export function createZipStream(
-  underlyingSource: UnderlyingSource<any>,
+  underlyingSource: ZipUnderlyingSource,
 ): ReadableStream {
   const files = Object.create(null)
   const filenames = []

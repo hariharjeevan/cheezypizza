@@ -284,17 +284,22 @@ export class RedisChannelRepo implements ChannelRepo {
   }
 }
 
-let _channelRepo: ChannelRepo | null = null
+// Use global to survive Next.js HMR module re-evaluation in dev mode.
+// Without this, the in-memory repo is wiped on every hot reload → 404s.
+declare global {
+  // eslint-disable-next-line no-var
+  var _channelRepo: ChannelRepo | undefined
+}
 
 export function getOrCreateChannelRepo(): ChannelRepo {
-  if (!_channelRepo) {
+  if (!global._channelRepo) {
     if (process.env.REDIS_URL) {
-      _channelRepo = new RedisChannelRepo()
+      global._channelRepo = new RedisChannelRepo()
       console.log('[ChannelRepo] Using Redis storage')
     } else {
-      _channelRepo = new MemoryChannelRepo()
+      global._channelRepo = new MemoryChannelRepo()
       console.log('[ChannelRepo] Using in-memory storage')
     }
   }
-  return _channelRepo
+  return global._channelRepo
 }

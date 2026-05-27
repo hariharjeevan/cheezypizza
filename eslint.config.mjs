@@ -2,13 +2,19 @@
 
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import { FlatCompat } from '@eslint/eslintrc';
 
-export default tseslint.config({
-  extends: [
+const compat = new FlatCompat({
+  baseDirectory: new URL('.', import.meta.url).pathname,
+});
+
+export default [
+  ...compat.extends('next/core-web-vitals'),
+  ...tseslint.config(
     eslint.configs.recommended,
     tseslint.configs.recommended,
-  ],
-  rules: {
+    {
+      rules: {
     '@typescript-eslint/no-unused-vars': [
       'error',
       { argsIgnorePattern: '^_' },
@@ -30,4 +36,6 @@ export default tseslint.config({
   },
   files: ['src/**/*.ts[x]'],
   ignores: ['legacy', 'node_modules', '.next'],
-});
+    },
+  ),
+];

@@ -58,7 +58,7 @@ export default function ReportTermsViolationButton({
       console.error('Failed to report violation', error)
       setIsReporting(false)
     }
-  }, [peer, uploaderPeerID])
+  }, [reportMutation, peer, uploaderPeerID])
 
   return (
     <>
@@ -118,7 +118,7 @@ export default function ReportTermsViolationButton({
               </ul>
 
               <p>
-                If you've spotted a violation of these terms, click Report to
+                If you&apos;ve spotted a violation of these terms, click Report to
                 halt its delivery.
               </p>
             </div>

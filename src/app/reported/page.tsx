@@ -16,7 +16,7 @@ export default function ReportedPage(): JSX.Element {
           Message from the management
         </h3>
         <p className="text-sm text-stone-600 dark:text-stone-300 leading-relaxed mb-6">
-          Just like a pizza with questionable toppings, we've had to put this
+          Just like a pizza with questionable toppings, we&apos;ve had to put this
           delivery on hold for potential violations of our terms of service. Our
           delivery quality team is looking into it to ensure we maintain our
           high standards.
