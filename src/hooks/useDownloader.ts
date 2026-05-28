@@ -40,9 +40,17 @@ const getZipFilename = (): string => `filepizza-download-${Date.now()}.zip`
  * Computes SHA-256 of a ReadableStream without loading the whole file into memory.
  * Uses DigestStream (Chrome 111+) when available; falls back to chunk accumulation.
  */
+type DigestStreamConstructor = new (
+  algorithm: string,
+) => { writable: WritableStream<Uint8Array>; digest: Promise<ArrayBuffer> }
+
 async function hashStream(stream: ReadableStream<Uint8Array>): Promise<string> {
-  if (typeof (globalThis as any).DigestStream !== 'undefined') {
-    const ds = new (globalThis as any).DigestStream('SHA-256')
+  const DigestStreamCtor =
+    (globalThis as unknown as {
+      DigestStream?: DigestStreamConstructor
+    }).DigestStream
+  if (typeof DigestStreamCtor !== 'undefined') {
+    const ds = new DigestStreamCtor('SHA-256')
     await stream.pipeTo(ds.writable)
     const digest: ArrayBuffer = await ds.digest
     return hexFromBuffer(digest)
@@ -565,37 +573,62 @@ export function useDownloader(uploaderPeerID: string): {
     }
 
     opfsHandlesRef.current = opfsHandles
-    setBytesDownloaded(Object.values(offsets).reduce((s, o) => s + o, 0))
 
     const writers: Record<string, FileWriter> = {}
+    setBytesDownloaded(Object.values(offsets).reduce((s, o) => s + o, 0))
 
     try {
       await Promise.all(
         filesInfo.map(async (info) => {
           const startOffset = offsets[info.fileName]
-          const writable = await openWritableStream(
-            opfsHandles[info.fileName],
-            startOffset,
-          )
+          let resumeOffset = startOffset
+
           if (startOffset > 0) {
-            // Trim any stale bytes from a previous interrupted download so the
-            // resumed file begins at the expected offset.
             const existingFile = await opfsHandles[info.fileName].getFile()
-            if (existingFile.size > startOffset) {
-              await writable.write({
-                type: 'truncate',
-                size: startOffset,
-              } as any)
+            if (existingFile.size < startOffset) {
+              // Chrome discarded unflushed writes — roll back to what's on disk.
+              console.warn(
+                `[Downloader] OPFS smaller than saved offset for ${info.fileName}: ` +
+                  `file=${existingFile.size} saved=${startOffset}. Rolling back.`,
+              )
+              resumeOffset = existingFile.size
+              offsets[info.fileName] = resumeOffset
+              await saveProgress(
+                uploaderPeerID,
+                info.fileName,
+                resumeOffset,
+                info.size,
+                sessionIdRef.current ?? undefined,
+              )
+            } else if (existingFile.size > startOffset) {
+              // Stale bytes beyond recorded offset — will truncate after opening.
+              resumeOffset = startOffset
             }
           }
+
+          const writable = await openWritableStream(
+            opfsHandles[info.fileName],
+            resumeOffset,
+          )
+
+          if (resumeOffset > 0) {
+            const existingFile = await opfsHandles[info.fileName].getFile()
+            if (existingFile.size > resumeOffset) {
+              await writable.write({
+                type: 'truncate',
+                size: resumeOffset,
+              } as FileSystemWriteChunkType)
+            }
+          }
+
           writers[info.fileName] = {
             writable,
             tail: Promise.resolve(),
             closed: false,
             finalized: false,
-            bytesWritten: startOffset,
+            bytesWritten: resumeOffset,
             expectedSize: info.size,
-            nextExpectedOffset: startOffset,
+            nextExpectedOffset: resumeOffset,
             pendingChunks: new Map(),
           }
         }),
@@ -731,7 +764,7 @@ export function useDownloader(uploaderPeerID: string): {
             await writer.writable.write({
               type: 'truncate',
               size: writer.expectedSize,
-            } as any)
+            } as FileSystemWriteChunkType)
             await writer.writable.close()
 
             // Remove this writer from active writers once the file is complete.

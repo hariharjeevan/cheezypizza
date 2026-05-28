@@ -1,6 +1,6 @@
 import { UploadedFile } from './types'
 
-const getAsFile = (entry: any): Promise<File> =>
+const getAsFile = (entry: FileSystemFileEntry): Promise<File> =>
   new Promise((resolve, reject) => {
     entry.file((file: UploadedFile) => {
       file.entryFullPath = entry.fullPath
@@ -8,14 +8,28 @@ const getAsFile = (entry: any): Promise<File> =>
     }, reject)
   })
 
-const readDirectoryEntries = (reader: any): Promise<any[]> =>
+const readDirectoryEntries = (
+  reader: FileSystemDirectoryReader,
+): Promise<FileSystemEntry[]> =>
   new Promise((resolve, reject) => {
     reader.readEntries((entries) => {
       resolve(entries)
     }, reject)
   })
 
-const scanDirectoryEntry = async (entry: any): Promise<File[]> => {
+function isDirectoryEntry(
+  entry: FileSystemEntry,
+): entry is FileSystemDirectoryEntry {
+  return entry.isDirectory
+}
+
+function isFileEntry(entry: FileSystemEntry): entry is FileSystemFileEntry {
+  return !entry.isDirectory
+}
+
+const scanDirectoryEntry = async (
+  entry: FileSystemDirectoryEntry,
+): Promise<File[]> => {
   const directoryReader = entry.createReader()
   const result: File[] = []
    
@@ -26,10 +40,10 @@ const scanDirectoryEntry = async (entry: any): Promise<File[]> => {
     }
 
     for (const se of subentries) {
-      if (se.isDirectory) {
+      if (isDirectoryEntry(se)) {
         const ses = await scanDirectoryEntry(se)
         result.push(...ses)
-      } else {
+      } else if (isFileEntry(se)) {
         const file = await getAsFile(se)
         result.push(file)
       }
@@ -52,9 +66,9 @@ export const extractFileList = async (
     const item = items[i]
     const entry = item.webkitGetAsEntry()
     if (entry) {
-      if (entry.isDirectory) {
+      if (isDirectoryEntry(entry)) {
         scans.push(scanDirectoryEntry(entry))
-      } else {
+      } else if (isFileEntry(entry)) {
         files.push(getAsFile(entry))
       }
     }

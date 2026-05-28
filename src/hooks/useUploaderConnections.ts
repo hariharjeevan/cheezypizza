@@ -16,8 +16,12 @@ import { getFileName } from '../fs'
 
 export const MAX_CHUNK_SIZE = 32 * 1024 // 32 KB
 
+type GlobalThisWithCrypto = {
+  crypto?: Crypto
+}
+
 function getSubtleCrypto(): SubtleCrypto | null {
-  const cryptoObj = (globalThis as any).crypto ?? null
+  const cryptoObj = (globalThis as unknown as GlobalThisWithCrypto).crypto ?? null
   return cryptoObj?.subtle ?? null
 }
 
@@ -44,9 +48,7 @@ function makeFileCacheKey(file: UploadedFile): string {
   // avoid collisions for same-name files with different contents.
   // @ts-ignore
   const lastModified =
-    typeof (file as any).lastModified === 'number'
-      ? (file as any).lastModified
-      : 0
+    typeof file.lastModified === 'number' ? file.lastModified : 0
   return `${name}::${file.size}::${lastModified}`
 }
 
@@ -212,7 +214,7 @@ useEffect(() => { connectionsRef.current = connections }, [connections])
         )
       }
 
-      const onData = (data: any): void => {
+      const onData = (data: unknown): void => {
         try {
           const message = decodeMessage(data)
           console.log('[UploaderConnections] received message:', message.type)
@@ -277,7 +279,7 @@ useEffect(() => { connectionsRef.current = connections }, [connections])
                   console.log(
                     '[UploaderConnections] sending file info with hashes',
                   )
-                  
+
                   safeSendOnConn(
                     conn,
                     { type: MessageType.Info, files: fileInfo } as Message,

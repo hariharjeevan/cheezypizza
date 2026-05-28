@@ -24,6 +24,10 @@ export default [
     ],
 
     rules: {
+      // Disable base rule
+      'no-unused-vars': 'off',
+
+      // Enable TS version
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
@@ -32,14 +36,16 @@ export default [
         },
       ],
 
+      // Enable prefer-const
       'prefer-const': 'error',
+
       'react-hooks/rules-of-hooks': 'error',
+      '@typescript-eslint/no-explicit-any': 'error',
 
       /*
        * WARNING-LEVEL RULES
        */
 
-      '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/ban-ts-comment': 'warn',
       'react-hooks/exhaustive-deps': 'warn',
       'no-shadow': 'warn',
