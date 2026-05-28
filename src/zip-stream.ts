@@ -93,9 +93,8 @@ export function createZipStream(
   function next() {
     activeZipIndex++
     activeZipObject = files[filenames[activeZipIndex]]
-     
+
     if (activeZipObject) processNextChunk()
-     
     else if (closed) closeZip()
   }
 
@@ -187,7 +186,7 @@ export function createZipStream(
 
       if (!activeZipObject) {
         activeZipObject = zipObject
-         
+
         processNextChunk()
       }
     },
@@ -196,7 +195,7 @@ export function createZipStream(
         throw new TypeError(
           'Cannot close a readable stream that has already been requested to be closed',
         )
-       
+
       if (!activeZipObject) closeZip()
       closed = true
     },

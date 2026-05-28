@@ -40,15 +40,17 @@ const getZipFilename = (): string => `filepizza-download-${Date.now()}.zip`
  * Computes SHA-256 of a ReadableStream without loading the whole file into memory.
  * Uses DigestStream (Chrome 111+) when available; falls back to chunk accumulation.
  */
-type DigestStreamConstructor = new (
-  algorithm: string,
-) => { writable: WritableStream<Uint8Array>; digest: Promise<ArrayBuffer> }
+type DigestStreamConstructor = new (algorithm: string) => {
+  writable: WritableStream<Uint8Array>
+  digest: Promise<ArrayBuffer>
+}
 
 async function hashStream(stream: ReadableStream<Uint8Array>): Promise<string> {
-  const DigestStreamCtor =
-    (globalThis as unknown as {
+  const DigestStreamCtor = (
+    globalThis as unknown as {
       DigestStream?: DigestStreamConstructor
-    }).DigestStream
+    }
+  ).DigestStream
   if (typeof DigestStreamCtor !== 'undefined') {
     const ds = new DigestStreamCtor('SHA-256')
     await stream.pipeTo(ds.writable)

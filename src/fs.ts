@@ -32,7 +32,7 @@ const scanDirectoryEntry = async (
 ): Promise<File[]> => {
   const directoryReader = entry.createReader()
   const result: File[] = []
-   
+
   while (true) {
     const subentries = await readDirectoryEntries(directoryReader)
     if (!subentries.length) {

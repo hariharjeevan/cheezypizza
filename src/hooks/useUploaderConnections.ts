@@ -21,7 +21,8 @@ type GlobalThisWithCrypto = {
 }
 
 function getSubtleCrypto(): SubtleCrypto | null {
-  const cryptoObj = (globalThis as unknown as GlobalThisWithCrypto).crypto ?? null
+  const cryptoObj =
+    (globalThis as unknown as GlobalThisWithCrypto).crypto ?? null
   return cryptoObj?.subtle ?? null
 }
 
@@ -29,7 +30,9 @@ async function computeFileSHA256(file: Blob): Promise<string> {
   const buffer = await file.arrayBuffer()
   const subtle = getSubtleCrypto()
   if (!subtle) {
-    throw new Error('Web Crypto API unavailable: crypto.subtle is not supported')
+    throw new Error(
+      'Web Crypto API unavailable: crypto.subtle is not supported',
+    )
   }
   const digest = await subtle.digest('SHA-256', buffer)
   return Array.from(new Uint8Array(digest))
@@ -133,7 +136,9 @@ export function useUploaderConnections(
   }> | null>(null)
 
   const connectionsRef = useRef<Array<UploaderConnection>>(connections)
-useEffect(() => { connectionsRef.current = connections }, [connections])
+  useEffect(() => {
+    connectionsRef.current = connections
+  }, [connections])
 
   useEffect(() => {
     console.log(
