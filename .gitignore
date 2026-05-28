@@ -3,22 +3,12 @@
 node_modules
 dist
 tsconfig.tsbuildinfo
-<<<<<<< HEAD
+
 .env
-=======
-<<<<<<< Updated upstream
-.env
-=======
 .env.local
->>>>>>> 62d4edd (chore: setup redis)
 
 # Playwright
 test-results/
 playwright-report/
 blob-report/
-<<<<<<< HEAD
 playwright/.cache/
-=======
-playwright/.cache/
->>>>>>> Stashed changes
->>>>>>> 62d4edd (chore: setup redis)
