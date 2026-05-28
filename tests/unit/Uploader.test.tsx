@@ -11,7 +11,9 @@ vi.mock('../../src/components/WebRTCProvider', () => ({
 vi.mock('../../src/hooks/useUploaderChannel', () => ({
   useUploaderChannel: (...args: any[]) => mockUseUploaderChannel(...args),
 }))
-vi.mock('../../src/hooks/useUploaderConnections', () => ({ useUploaderConnections: () => [] }))
+vi.mock('../../src/hooks/useUploaderConnections', () => ({
+  useUploaderConnections: () => ({ connections: [], fileInfo: null }),
+}))
 vi.mock('react-qr-code', () => ({ default: () => <div>QR</div> }))
 vi.mock('../../src/components/CopyableInput', () => ({ CopyableInput: () => <div>Input</div> }))
 vi.mock('../../src/components/ConnectionListItem', () => ({ ConnectionListItem: () => <div>Item</div> }))
@@ -21,7 +23,7 @@ import Uploader from '../../src/components/Uploader'
 
 describe('Uploader', () => {
   it('shows loading when channel loading', () => {
-    mockUseUploaderChannel = vi.fn().mockReturnValueOnce({
+    mockUseUploaderChannel = vi.fn().mockReturnValue({
       isLoading: true,
       error: null,
       longSlug: undefined,
