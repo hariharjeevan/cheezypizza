@@ -27,7 +27,7 @@ function generateRandomWords(
     const getRandomInt = (max: number): number => {
       const limit = 4294967295 - (4294967295 % max) // uint32 max
 
-      let buffer = new Uint32Array(1)
+      const buffer = new Uint32Array(1)
       do {
         if (typeof window !== 'undefined' && window.crypto) {
           window.crypto.getRandomValues(buffer)

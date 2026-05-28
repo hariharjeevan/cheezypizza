@@ -31,6 +31,7 @@ export const InfoMessage = z.object({
       fileName: z.string(),
       size: z.number(),
       type: z.string(),
+      sha256: z.string(),
     }),
   ),
 })

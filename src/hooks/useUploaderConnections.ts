@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Peer, { DataConnection } from 'peerjs'
 import {
   UploadedFile,
@@ -14,11 +14,69 @@ import {
 import { z } from 'zod'
 import { getFileName } from '../fs'
 
-export const MAX_CHUNK_SIZE = 64 * 1024 // 64 KB
+export const MAX_CHUNK_SIZE = 32 * 1024 // 32 KB
+
+function getSubtleCrypto(): SubtleCrypto | null {
+  const cryptoObj = (globalThis as any).crypto ?? null
+  return cryptoObj?.subtle ?? null
+}
+
+async function computeFileSHA256(file: Blob): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const subtle = getSubtleCrypto()
+  if (!subtle) {
+    throw new Error('Web Crypto API unavailable: crypto.subtle is not supported')
+  }
+  const digest = await subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+// Cache so reconnects / re-renders don't re-hash the same files.
+// Use a Map keyed by file identity (name + size + lastModified when available)
+// because File/Blob object references can change across renders.
+const sha256CacheByKey = new Map<string, string>()
+
+function makeFileCacheKey(file: UploadedFile): string {
+  const name = getFileName(file)
+  // Some File objects expose `lastModified`; include it when present to
+  // avoid collisions for same-name files with different contents.
+  // @ts-ignore
+  const lastModified =
+    typeof (file as any).lastModified === 'number'
+      ? (file as any).lastModified
+      : 0
+  return `${name}::${file.size}::${lastModified}`
+}
+
+async function getOrComputeSHA256(file: UploadedFile): Promise<string> {
+  const key = makeFileCacheKey(file)
+  const cached = sha256CacheByKey.get(key)
+  if (cached) return cached
+  const hash = await computeFileSHA256(file)
+  sha256CacheByKey.set(key, hash)
+  return hash
+}
+
+async function buildFileInfo(
+  files: UploadedFile[],
+): Promise<
+  Array<{ fileName: string; size: number; type: string; sha256: string }>
+> {
+  return Promise.all(
+    files.map(async (f) => ({
+      fileName: getFileName(f),
+      size: f.size,
+      type: f.type,
+      sha256: await getOrComputeSHA256(f),
+    })),
+  )
+}
 const WINDOW_SIZE = 8
 
-export function isFinalChunk(offset: number, fileSize: number): boolean {
-  return offset + MAX_CHUNK_SIZE >= fileSize
+export function isFinalChunk(end: number, fileSize: number): boolean {
+  return end === fileSize
 }
 
 function validateOffset(
@@ -35,12 +93,45 @@ function validateOffset(
   return validFile
 }
 
+function safeSendOnConn(
+  conn: DataConnection,
+  message: Message,
+  context: string,
+): void {
+  if (!conn.open) {
+    console.warn(`[${context}] send skipped, connection not open`)
+    return
+  }
+  try {
+    conn.send(message)
+  } catch (err) {
+    console.warn(`[${context}] send threw:`, err)
+  }
+}
+
 export function useUploaderConnections(
   peer: Peer,
   files: UploadedFile[],
   password: string,
-): Array<UploaderConnection> {
+): {
+  connections: Array<UploaderConnection>
+  fileInfo: Array<{
+    fileName: string
+    size: number
+    type: string
+    sha256: string
+  }> | null
+} {
   const [connections, setConnections] = useState<Array<UploaderConnection>>([])
+  const [fileInfo, setFileInfo] = useState<Array<{
+    fileName: string
+    size: number
+    type: string
+    sha256: string
+  }> | null>(null)
+
+  const connectionsRef = useRef<Array<UploaderConnection>>(connections)
+useEffect(() => { connectionsRef.current = connections }, [connections])
 
   useEffect(() => {
     console.log(
@@ -48,6 +139,26 @@ export function useUploaderConnections(
       files.length,
       'files',
     )
+    setFileInfo(null)
+    let cancelled = false
+    // Precompute file info (including SHA-256) once per uploader session so
+    // subsequent reconnects or resume attempts reuse the same hashes and
+    // do not change the session id.
+    const fileInfoPromise = buildFileInfo(files)
+
+    fileInfoPromise
+      .then((info) => {
+        if (!cancelled) setFileInfo(info)
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          console.error(
+            '[UploaderConnections] failed to compute file info:',
+            err,
+          )
+        }
+      })
+
     const cleanupHandlers: Array<() => void> = []
 
     const listener = (conn: DataConnection) => {
@@ -58,7 +169,7 @@ export function useUploaderConnections(
           '[UploaderConnections] received report connection, redirecting',
         )
         // Broadcast report message to all connections
-        connections.forEach((c) => {
+        connectionsRef.current.forEach((c) => {
           c.dataConnection.send({
             type: MessageType.Report,
           })
@@ -71,7 +182,6 @@ export function useUploaderConnections(
       }
 
       let currentFileName: string | null = null
-      let currentFileSize = 0
       let nextOffset = 0
       let outstandingChunks = 0
       let finalChunkSent = false
@@ -88,7 +198,10 @@ export function useUploaderConnections(
       }
 
       setConnections((conns) => {
-        return [newConn, ...conns]
+        const withoutOld = conns.filter(
+          (c) => c.dataConnection.peer !== conn.peer,
+        )
+        return [newConn, ...withoutOld]
       })
 
       const updateConnection = (
@@ -125,10 +238,12 @@ export function useUploaderConnections(
                 console.log(
                   '[UploaderConnections] password required, requesting authentication',
                 )
-                const request: Message = {
-                  type: MessageType.PasswordRequired,
-                }
-                conn.send(request)
+
+                safeSendOnConn(
+                  conn,
+                  { type: MessageType.PasswordRequired } as Message,
+                  'UploaderConnections/PasswordRequired',
+                )
 
                 updateConnection((draft) => {
                   if (draft.status !== UploaderConnectionStatus.Pending) {
@@ -156,22 +271,25 @@ export function useUploaderConnections(
                   status: UploaderConnectionStatus.Ready,
                 }
               })
-
-              const fileInfo = files.map((f) => {
-                return {
-                  fileName: getFileName(f),
-                  size: f.size,
-                  type: f.type,
+              ;(async () => {
+                try {
+                  const fileInfo = await fileInfoPromise
+                  console.log(
+                    '[UploaderConnections] sending file info with hashes',
+                  )
+                  
+                  safeSendOnConn(
+                    conn,
+                    { type: MessageType.Info, files: fileInfo } as Message,
+                    'UploaderConnections/Info',
+                  )
+                } catch (err) {
+                  console.error(
+                    '[UploaderConnections] failed to build file info:',
+                    err,
+                  )
                 }
-              })
-
-              console.log('[UploaderConnections] sending file info:', fileInfo)
-              const request: Message = {
-                type: MessageType.Info,
-                files: fileInfo,
-              }
-
-              conn.send(request)
+              })()
               break
             }
 
@@ -193,19 +311,25 @@ export function useUploaderConnections(
                     status: UploaderConnectionStatus.Ready,
                   }
                 })
+                ;(async () => {
+                  try {
+                    const fileInfo = await fileInfoPromise
+                    console.log(
+                      '[UploaderConnections] sending file info with hashes (post-auth)',
+                    )
 
-                const fileInfo = files.map((f) => ({
-                  fileName: getFileName(f),
-                  size: f.size,
-                  type: f.type,
-                }))
-
-                const request: Message = {
-                  type: MessageType.Info,
-                  files: fileInfo,
-                }
-
-                conn.send(request)
+                    safeSendOnConn(
+                      conn,
+                      { type: MessageType.Info, files: fileInfo } as Message,
+                      'UploaderConnections/Info(post-auth)',
+                    )
+                  } catch (err) {
+                    console.error(
+                      '[UploaderConnections] failed to build file info:',
+                      err,
+                    )
+                  }
+                })()
               } else {
                 console.log('[UploaderConnections] password incorrect')
                 updateConnection((draft) => {
@@ -221,11 +345,14 @@ export function useUploaderConnections(
                   }
                 })
 
-                const request: Message = {
-                  type: MessageType.PasswordRequired,
-                  errorMessage: 'Invalid password',
-                }
-                conn.send(request)
+                safeSendOnConn(
+                  conn,
+                  {
+                    type: MessageType.PasswordRequired,
+                    errorMessage: 'Invalid password',
+                  } as Message,
+                  'UploaderConnections/InvalidPassword',
+                )
               }
               break
             }
@@ -242,7 +369,6 @@ export function useUploaderConnections(
               const file = validateOffset(files, fileName, offset)
 
               currentFileName = fileName
-              currentFileSize = file.size
               nextOffset = offset
               outstandingChunks = 0
               finalChunkSent = false
@@ -254,8 +380,16 @@ export function useUploaderConnections(
                   !finalChunkSent &&
                   outstandingChunks < WINDOW_SIZE
                 ) {
+                  if (!conn.open) {
+                    console.warn(
+                      '[UploaderConnections] sendWindow aborted, connection closed',
+                    )
+                    paused = true
+                    return
+                  }
+
                   const end = Math.min(file.size, nextOffset + MAX_CHUNK_SIZE)
-                  const final = isFinalChunk(nextOffset, file.size)
+                  const final = isFinalChunk(end, file.size)
                   const chunkOffset = nextOffset
                   const chunkIndex = outstandingChunks + 1
 
@@ -271,7 +405,25 @@ export function useUploaderConnections(
                     bytes: file.slice(chunkOffset, end),
                     final,
                   }
-                  conn.send(request)
+
+                  if (!conn.open) {
+                    console.warn(
+                      '[UploaderConnections] sendWindow: conn closed before send',
+                    )
+                    paused = true
+                    return
+                  }
+                  try {
+                    conn.send(request)
+                  } catch (err) {
+                    console.warn(
+                      '[UploaderConnections] sendWindow send threw, pausing:',
+                      err,
+                    )
+                    paused = true
+                    return
+                  }
+
                   outstandingChunks++
                   nextOffset = end
 
@@ -294,8 +446,8 @@ export function useUploaderConnections(
                   status: UploaderConnectionStatus.Uploading,
                   uploadingFileName: fileName,
                   uploadingOffset: nextOffset,
-                  acknowledgedBytes: 0,
-                  currentFileProgress: 0,
+                  acknowledgedBytes: offset,
+                  currentFileProgress: file.size > 0 ? offset / file.size : 0,
                 }
 
                 sendWindow?.()
@@ -338,10 +490,13 @@ export function useUploaderConnections(
 
               updateConnection((draft) => {
                 const currentAcked = draft.acknowledgedBytes || 0
-                const newAcked = currentAcked + ackMessage.bytesReceived
-
                 const file = files.find(
                   (f) => getFileName(f) === ackMessage.fileName,
+                )
+                const maxAcked = file?.size ?? Number.MAX_SAFE_INTEGER
+                const newAcked = Math.min(
+                  currentAcked + ackMessage.bytesReceived,
+                  maxAcked,
                 )
 
                 if (file) {
@@ -402,6 +557,8 @@ export function useUploaderConnections(
       const onClose = (): void => {
         console.log('[UploaderConnections] connection closed')
 
+        paused = true
+
         updateConnection((draft) => {
           if (
             [
@@ -433,10 +590,11 @@ export function useUploaderConnections(
 
     return () => {
       console.log('[UploaderConnections] cleaning up connections')
+      cancelled = true
       peer.off('connection', listener)
       cleanupHandlers.forEach((fn) => fn())
     }
   }, [peer, files, password])
 
-  return connections
+  return { connections, fileInfo }
 }

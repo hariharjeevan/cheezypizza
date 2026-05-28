@@ -10,6 +10,7 @@ import { useUploaderChannel } from '../hooks/useUploaderChannel'
 import { useUploaderConnections } from '../hooks/useUploaderConnections'
 import { CopyableInput } from './CopyableInput'
 import { ConnectionListItem } from './ConnectionListItem'
+import UploadFileList from './UploadFileList'
 import { ErrorMessage } from './ErrorMessage'
 import { setRotating } from '../hooks/useRotatingSpinner'
 
@@ -27,7 +28,11 @@ export default function Uploader({
   const { peer, stop } = useWebRTCPeer()
   const { isLoading, error, longSlug, shortSlug, longURL, shortURL } =
     useUploaderChannel(peer.id)
-  const connections = useUploaderConnections(peer, files, password)
+  const { connections, fileInfo } = useUploaderConnections(
+    peer,
+    files,
+    password,
+  )
 
   const handleStop = useCallback(() => {
     stop()
@@ -61,6 +66,14 @@ export default function Uploader({
           <CopyableInput label="Short URL" value={shortURL ?? ''} />
         </div>
       </div>
+      {fileInfo ? (
+        <div className="mt-6">
+          <h3 className="text-sm font-semibold text-stone-500 dark:text-stone-400 mb-2">
+            File hashes
+          </h3>
+          <UploadFileList files={fileInfo} />
+        </div>
+      ) : null}
       <div className="mt-6 pt-4 border-t border-stone-200 dark:border-stone-700 w-full">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-lg font-semibold text-stone-400 dark:text-stone-200">
@@ -68,8 +81,11 @@ export default function Uploader({
           </h2>
           <StopButton onClick={handleStop} />
         </div>
-        {connections.map((conn, i) => (
-          <ConnectionListItem key={i} conn={conn} />
+        {/* key by peer ID so React reuses the same component instance
+            across pause/resume cycles instead of mounting duplicates. The hook
+            already deduplicates by peer ID, so this is always unique. */}
+        {connections.map((conn) => (
+          <ConnectionListItem key={conn.dataConnection.peer} conn={conn} />
         ))}
       </div>
     </>

@@ -118,8 +118,8 @@ export default function ReportTermsViolationButton({
               </ul>
 
               <p>
-                If you&apos;ve spotted a violation of these terms, click Report to
-                halt its delivery.
+                If you&apos;ve spotted a violation of these terms, click Report
+                to halt its delivery.
               </p>
             </div>
 

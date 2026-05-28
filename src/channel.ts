@@ -287,7 +287,6 @@ export class RedisChannelRepo implements ChannelRepo {
 // Use global to survive Next.js HMR module re-evaluation in dev mode.
 // Without this, the in-memory repo is wiped on every hot reload → 404s.
 declare global {
-  // eslint-disable-next-line no-var
   var _channelRepo: ChannelRepo | undefined
 }
 
