@@ -33,7 +33,7 @@ describe('Downloader subcomponents', () => {
 
   it('DownloadInProgress shows stop button', () => {
     const { getByText } = render(
-      <DownloadInProgress filesInfo={files} bytesDownloaded={0} totalSize={1} onStop={() => {}} />,
+      <DownloadInProgress filesInfo={files} bytesDownloaded={0} totalSize={1} onPause={() => {}} onStop={() => {}} />,
     )
     expect(getByText('Stop Download')).toBeInTheDocument()
   })

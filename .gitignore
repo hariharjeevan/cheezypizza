@@ -4,3 +4,9 @@ node_modules
 dist
 tsconfig.tsbuildinfo
 .env
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
