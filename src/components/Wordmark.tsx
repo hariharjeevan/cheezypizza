@@ -1,6 +1,10 @@
 import { JSX } from 'react'
 
-export default function Wordmark(): JSX.Element {
+export default function Wordmark({
+  className,
+}: {
+  className?: string
+}): JSX.Element {
   return (
     <svg
       width="972"
@@ -8,8 +12,10 @@ export default function Wordmark(): JSX.Element {
       viewBox="0 0 972 212"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      className="h-12 w-auto text-red-600 dark:brightness-0 dark:invert"
-      aria-label="FilePizza logo"
+      className={
+        className ?? 'h-12 w-auto text-red-600 dark:brightness-0 dark:invert'
+      }
+      aria-label="CheezyPizza logo"
       role="img"
     >
       <path

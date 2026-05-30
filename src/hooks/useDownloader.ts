@@ -164,6 +164,8 @@ export function useDownloader(uploaderPeerID: string): {
   totalSize: number
   bytesDownloaded: number
   verifiedHashes: Record<string, string>
+  speedBytesPerSec?: number
+  etaSeconds?: number
 } {
   const { peer } = useWebRTCPeer()
   // Ref instead of state: startDownload/pauseDownload/stopDownload are async
@@ -448,18 +450,67 @@ export function useDownloader(uploaderPeerID: string): {
   const [isPaused, setIsPaused] = useState(false)
   const [isDone, setDone] = useState(false)
   const [bytesDownloaded, setBytesDownloaded] = useState(0)
+  const [speedBytesPerSec, setSpeedBytesPerSec] = useState<number | undefined>()
+  const [etaSeconds, setEtaSeconds] = useState<number | undefined>()
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [resumeOffsets, setResumeOffsets] = useState<Record<string, number>>({})
   const [verifiedHashes, setVerifiedHashes] = useState<Record<string, string>>(
     {},
   )
 
-  // Kept for stopDownload cleanup
-  const opfsHandlesRef = useRef<Record<string, FileSystemFileHandle>>({})
-  const filesInfoRef = useRef<typeof filesInfo>(null)
+  const lastBytesRef = useRef(0)
+  const lastTimeRef = useRef(Date.now())
+  const emaSpeedRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!isDownloading) {
+      emaSpeedRef.current = null
+      lastBytesRef.current = bytesDownloaded
+      lastTimeRef.current = Date.now()
+      setSpeedBytesPerSec(undefined)
+      setEtaSeconds(undefined)
+      return
+    }
+
+    const id = setInterval(() => {
+      const now = Date.now()
+
+      const deltaBytes = bytesDownloaded - lastBytesRef.current
+      const deltaTime = (now - lastTimeRef.current) / 1000
+
+      lastBytesRef.current = bytesDownloaded
+      lastTimeRef.current = now
+
+      if (deltaTime <= 0) return
+
+      const instantSpeed = deltaBytes / deltaTime
+
+      emaSpeedRef.current =
+        emaSpeedRef.current === null
+          ? instantSpeed
+          : 0.4 * instantSpeed + 0.6 * emaSpeedRef.current
+
+      const speed = emaSpeedRef.current
+
+      setSpeedBytesPerSec(speed)
+
+      const remaining =
+        (filesInfo?.reduce((s, f) => s + f.size, 0) ?? 0) - bytesDownloaded
+
+      setEtaSeconds(
+        speed > 1024 && remaining > 0 ? remaining / speed : undefined,
+      )
+    }, 1000)
+
+    return () => clearInterval(id)
+  }, [isDownloading, bytesDownloaded, filesInfo])
   useEffect(() => {
     filesInfoRef.current = filesInfo
   }, [filesInfo])
+
+  // Kept for stopDownload cleanup
+  const opfsHandlesRef = useRef<Record<string, FileSystemFileHandle>>({})
+  const filesInfoRef = useRef<typeof filesInfo>(null)
 
   // Peer connection + message routing
   useEffect(() => {
@@ -1211,5 +1262,7 @@ export function useDownloader(uploaderPeerID: string): {
     totalSize: filesInfo?.reduce((acc, info) => acc + info.size, 0) ?? 0,
     bytesDownloaded,
     verifiedHashes,
+    speedBytesPerSec,
+    etaSeconds,
   }
 }

@@ -10,7 +10,7 @@ describe('PasswordField', () => {
     const { getByPlaceholderText } = render(
       <PasswordField value="" onChange={(v) => (val = v)} />,
     )
-    fireEvent.change(getByPlaceholderText('Enter a secret password for this slice of FilePizza...'), {
+    fireEvent.change(getByPlaceholderText('Enter a secret password for this slice of CheezyPizza...'), {
       target: { value: 'a' },
     })
     expect(val).toBe('a')

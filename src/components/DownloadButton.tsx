@@ -11,7 +11,15 @@ export default function DownloadButton({
     <button
       id="download-button"
       onClick={onClick}
-      className="h-12 px-4 bg-linear-to-b from-green-500 to-green-600 text-white rounded-md hover:from-green-500 hover:to-green-700 transition-all duration-200 border border-green-600 shadow-sm hover:shadow-md text-shadow"
+      className="h-12 px-5
+    bg-gradient-to-b from-amber-400 to-orange-500
+    dark:from-amber-500 dark:to-orange-600
+    text-white font-semibold
+    rounded-md border border-orange-600
+    shadow-sm hover:shadow-md
+    hover:from-amber-300 hover:to-orange-400
+    active:scale-[0.98]
+    transition-all duration-200"
     >
       {label}
     </button>

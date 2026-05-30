@@ -24,6 +24,34 @@ export function ConnectionListItem({
     }
   }
 
+  function formatSpeed(bps?: number): string {
+    if (!bps || bps < 1024) return '--'
+
+    if (bps >= 1024 * 1024 * 1024)
+      return `${(bps / (1024 * 1024 * 1024)).toFixed(2)} GB/s`
+
+    if (bps >= 1024 * 1024) return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`
+
+    return `${Math.round(bps / 1024)} KB/s`
+  }
+
+  function formatETA(seconds?: number): string {
+    if (!seconds || !isFinite(seconds)) return '--'
+
+    if (seconds < 60) return `${Math.round(seconds)}s`
+
+    if (seconds < 3600) {
+      const m = Math.floor(seconds / 60)
+      const s = Math.round(seconds % 60)
+      return `${m}m ${s}s`
+    }
+
+    const h = Math.floor(seconds / 3600)
+    const m = Math.floor((seconds % 3600) / 60)
+
+    return `${h}h ${m}m`
+  }
+
   return (
     <div className="w-full mt-4">
       <div className="flex justify-between items-center mb-2">
@@ -67,6 +95,14 @@ export function ConnectionListItem({
         }
         max={1}
       />
+
+      {conn.status === UploaderConnectionStatus.Uploading && (
+        <div className="mt-2 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
+          <span>Speed: {formatSpeed(conn.speedBytesPerSec)}</span>
+
+          <span>ETA: {formatETA(conn.etaSeconds)}</span>
+        </div>
+      )}
     </div>
   )
 }

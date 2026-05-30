@@ -51,7 +51,7 @@ describe('Downloader subcomponents', () => {
       <PasswordEntry errorMessage={null} onSubmit={(v) => (submitted = v)} />,
     )
     fireEvent.change(
-      getByPlaceholderText('Enter a secret password for this slice of FilePizza...'),
+      getByPlaceholderText('Enter a secret password for this slice of CheezyPizza...'),
       { target: { value: 'secret' } },
     )
     fireEvent.submit(getByText('Unlock'))

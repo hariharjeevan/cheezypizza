@@ -28,4 +28,6 @@ export type UploaderConnection = {
   completedFiles: number
   totalFiles: number
   currentFileProgress: number
+  speedBytesPerSec?: number
+  etaSeconds?: number
 }

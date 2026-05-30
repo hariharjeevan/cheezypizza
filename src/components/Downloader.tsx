@@ -119,18 +119,41 @@ export function DownloadComplete({
   )
 }
 
+function formatSpeed(bps?: number): string {
+  if (!bps || bps < 1024) return '--'
+
+  if (bps >= 1024 * 1024) return `${(bps / (1024 * 1024)).toFixed(1)} MB/s`
+
+  return `${Math.round(bps / 1024)} KB/s`
+}
+
+function formatETA(seconds?: number): string {
+  if (!seconds || !isFinite(seconds)) return '--'
+
+  if (seconds < 60) return `${Math.round(seconds)}s`
+
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+
+  return `${m}m ${s}s`
+}
+
 export function DownloadInProgress({
   filesInfo,
   bytesDownloaded,
   totalSize,
   onPause,
   onStop,
+  speedBytesPerSec,
+  etaSeconds,
 }: {
   filesInfo: FileInfo[]
   bytesDownloaded: number
   totalSize: number
   onPause: () => void
   onStop: () => void
+  speedBytesPerSec?: number
+  etaSeconds?: number
 }): JSX.Element {
   return (
     <>
@@ -141,6 +164,12 @@ export function DownloadInProgress({
         <UploadFileList files={filesInfo} />
         <div className="w-full">
           <ProgressBar value={bytesDownloaded} max={totalSize} />
+
+          <div className="mt-2 flex justify-between text-xs text-stone-500 dark:text-stone-400">
+            <span>{formatSpeed(speedBytesPerSec)}</span>
+
+            <span>{formatETA(etaSeconds)}</span>
+          </div>
         </div>
         <p className="text-xs text-center text-stone-500 dark:text-stone-400">
           Your progress is saved — you can safely close this tab and resume
@@ -341,6 +370,8 @@ export default function Downloader({
         totalSize={totalSize}
         onPause={pauseDownload}
         onStop={stopDownload}
+        //speedBytesPerSec={speedBytesPerSec}
+        //etaSeconds={etaSeconds}
       />
     )
   }

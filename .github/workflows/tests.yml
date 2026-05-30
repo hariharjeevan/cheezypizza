@@ -13,7 +13,7 @@ jobs:
           node-version: 24
           cache: 'pnpm'
       - run: pnpm install
-      - run: pnpm exec playwright install --with-deps
+      # - run: pnpm exec playwright install --with-deps
       - run: pnpm lint:check
       - run: pnpm format:check
       - run: pnpm type:check

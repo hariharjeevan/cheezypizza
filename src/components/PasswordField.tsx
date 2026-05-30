@@ -30,12 +30,20 @@ export default function PasswordField({
       <input
         autoFocus
         type="password"
-        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 ${
-          isInvalid
-            ? 'border-red-500 dark:border-red-400'
-            : 'border-stone-300 dark:border-stone-600'
-        } bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100`}
-        placeholder="Enter a secret password for this slice of FilePizza..."
+        className={`
+          w-full px-3 py-2.5 rounded-lg text-sm
+          bg-amber-50 dark:bg-[#1a1612]
+          text-stone-900 dark:text-amber-50
+          placeholder:text-stone-400 dark:placeholder:text-stone-600
+          border focus:outline-none focus:ring-2
+          transition-colors duration-200
+          ${
+            isInvalid
+              ? 'border-red-400 dark:border-red-500 focus:ring-red-300 dark:focus:ring-red-800'
+              : 'border-amber-300 dark:border-[#2e2520] focus:ring-amber-300 dark:focus:ring-amber-900 focus:border-amber-400 dark:focus:border-amber-800'
+          }
+        `}
+        placeholder="Enter a secret password for this slice of CheezyPizza..."
         value={value}
         onChange={handleChange}
       />

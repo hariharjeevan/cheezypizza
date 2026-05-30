@@ -9,7 +9,12 @@ export default function StopButton({
 }): React.ReactElement {
   return (
     <button
-      className="px-2 py-1 text-xs text-orange-500 dark:text-orange-400 bg-transparent hover:bg-orange-100 dark:hover:bg-orange-900 rounded transition-colors duration-200 flex items-center"
+      className="px-2 py-1 text-xs
+  text-orange-600 dark:text-orange-400
+  bg-transparent
+  hover:bg-orange-100 dark:hover:bg-orange-900/40
+  border border-transparent hover:border-orange-300 dark:hover:border-orange-700
+  rounded transition-all duration-200 flex items-center gap-1"
       onClick={onClick}
     >
       <svg

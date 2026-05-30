@@ -9,7 +9,6 @@ import PasswordField from '../components/PasswordField'
 import StartButton from '../components/StartButton'
 import { UploadedFile } from '../types'
 import Spinner from '../components/Spinner'
-import Wordmark from '../components/Wordmark'
 import CancelButton from '../components/CancelButton'
 import { useMemo } from 'react'
 import { getFileName } from '../fs'
@@ -18,12 +17,12 @@ import SubtitleText from '../components/SubtitleText'
 import { pluralize } from '../utils/pluralize'
 import TermsAcceptance from '../components/TermsAcceptance'
 import AddFilesButton from '../components/AddFilesButton'
+import FeatureMenu from '../components/FeatureMenu'
 
 function PageWrapper({ children }: { children: React.ReactNode }): JSX.Element {
   return (
     <div className="flex flex-col items-center space-y-5 py-10 max-w-2xl mx-auto px-4">
       <Spinner direction="up" />
-      <Wordmark />
       {children}
     </div>
   )
@@ -41,6 +40,7 @@ function InitialState({
       </div>
       <DropZone onDrop={onDrop} />
       <TermsAcceptance />
+      <FeatureMenu />
     </PageWrapper>
   )
 }
@@ -105,7 +105,7 @@ function UploadingState({
         You are uploading {pluralize(uploadedFiles.length, 'file', 'files')}.
       </TitleText>
       <SubtitleText>
-        Leave this tab open. FilePizza does not store files.
+        Leave this tab open. CheezyPizza does not store files.
       </SubtitleText>
       <UploadFileList files={fileListData} />
       <WebRTCPeerProvider>

@@ -17,15 +17,24 @@ export function CopyableInput({
       <div className="flex w-full">
         <input
           id={`copyable-input-${label.toLowerCase().replace(/\s+/g, '-')}`}
-          className="grow px-3 py-2 text-xs border border-r-0 rounded-l text-stone-900 dark:text-stone-100 bg-white dark:bg-stone-800 border-stone-300 dark:border-stone-600"
+          className="grow px-3 py-2 text-xs border border-r-0 rounded-l
+    text-stone-900 dark:text-stone-100
+    bg-amber-50 dark:bg-stone-800
+    border-amber-300 dark:border-stone-600"
           value={value}
           readOnly
         />
         <button
-          className="px-4 py-2 text-sm text-stone-700 dark:text-stone-200 bg-stone-100 dark:bg-stone-700 hover:bg-stone-200 dark:hover:bg-stone-600 rounded-r border-t border-r border-b border-stone-300 dark:border-stone-600"
+          className="px-4 py-2 text-sm font-medium
+    text-amber-800 dark:text-amber-200
+    bg-amber-100 dark:bg-stone-700
+    hover:bg-amber-200 dark:hover:bg-stone-600
+    rounded-r border-t border-r border-b
+    border-amber-300 dark:border-stone-600
+    transition-colors duration-200"
           onClick={onCopy}
         >
-          {hasCopied ? 'Copied' : 'Copy'}
+          {hasCopied ? '✓ Copied' : 'Copy'}
         </button>
       </div>
     </div>

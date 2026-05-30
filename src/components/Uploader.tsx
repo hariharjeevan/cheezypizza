@@ -7,7 +7,7 @@ import QRCode from 'react-qr-code'
 import Loading from './Loading'
 import StopButton from './StopButton'
 import { useUploaderChannel } from '../hooks/useUploaderChannel'
-import { useUploaderConnections } from '../hooks/useUploaderConnections'
+import { useUploaderConnections } from '../hooks/uploader/useUploaderConnections'
 import { CopyableInput } from './CopyableInput'
 import { ConnectionListItem } from './ConnectionListItem'
 import UploadFileList from './UploadFileList'
@@ -81,9 +81,6 @@ export default function Uploader({
           </h2>
           <StopButton onClick={handleStop} />
         </div>
-        {/* key by peer ID so React reuses the same component instance
-            across pause/resume cycles instead of mounting duplicates. The hook
-            already deduplicates by peer ID, so this is always unique. */}
         {connections.map((conn) => (
           <ConnectionListItem key={conn.dataConnection.peer} conn={conn} />
         ))}

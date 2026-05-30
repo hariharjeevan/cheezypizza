@@ -36,7 +36,7 @@ export default function AddFilesButton({
         id="add-files-button"
         type="button"
         onClick={handleClick}
-        className="underline text-stone-700 dark:text-stone-300 hover:text-stone-900 dark:hover:text-stone-100 transition-colors duration-200"
+        className="underline text-amber-700 dark:text-amber-400 hover:text-orange-600 dark:hover:text-orange-400 transition-colors duration-200"
       >
         Add more files
       </button>

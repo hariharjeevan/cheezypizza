@@ -7,6 +7,6 @@ import Wordmark from '../../src/components/Wordmark'
 describe('Wordmark', () => {
   it('renders svg', () => {
     const { getByLabelText } = render(<Wordmark />)
-    expect(getByLabelText('FilePizza logo')).toBeInTheDocument()
+    expect(getByLabelText('CheezyPizza logo')).toBeInTheDocument()
   })
 })

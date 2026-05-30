@@ -81,7 +81,7 @@ export default function ReportTermsViolationButton({
           onClick={() => setShowModal(false)}
         >
           <div
-            className="bg-stone-50 dark:bg-stone-900 border border-stone-200 dark:border-stone-700 rounded-lg p-8 max-w-md w-full shadow-lg"
+            className="bg-amber-50 dark:bg-stone-900 border border-amber-200 dark:border-stone-700 rounded-xl p-8 max-w-md w-full shadow-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <h2
@@ -97,7 +97,7 @@ export default function ReportTermsViolationButton({
               </p>
 
               <ul className="list-none space-y-3">
-                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-stone-100 dark:bg-stone-800">
+                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-amber-100 dark:bg-stone-800 border border-amber-200 dark:border-stone-700">
                   <span className="text-base">✅</span>
                   <span className="text-sm">
                     Only upload files you have the right to share

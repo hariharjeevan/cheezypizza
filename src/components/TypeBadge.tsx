@@ -9,7 +9,7 @@ function getTypeColor(fileType: string): string {
     return 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
   if (fileType.startsWith('video/'))
     return 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200'
-  return 'bg-stone-100 dark:bg-stone-900 text-stone-800 dark:text-stone-200'
+  return 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200'
 }
 
 export default function TypeBadge({ type }: { type: string }): JSX.Element {
