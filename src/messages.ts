@@ -3,6 +3,7 @@ import { z } from 'zod'
 export enum MessageType {
   RequestInfo = 'RequestInfo',
   Info = 'Info',
+  HashUpdate = 'HashUpdate',
   Start = 'Start',
   Chunk = 'Chunk',
   ChunkAck = 'ChunkAck',
@@ -31,9 +32,15 @@ export const InfoMessage = z.object({
       fileName: z.string(),
       size: z.number(),
       type: z.string(),
-      sha256: z.string(),
+      sha256: z.string().optional(),
     }),
   ),
+})
+
+export const HashUpdateMessage = z.object({
+  type: z.literal(MessageType.HashUpdate),
+  fileName: z.string(),
+  sha256: z.string(),
 })
 
 export const StartMessage = z.object({
@@ -87,6 +94,7 @@ export const ReportMessage = z.object({
 export const Message = z.discriminatedUnion('type', [
   RequestInfoMessage,
   InfoMessage,
+  HashUpdateMessage,
   StartMessage,
   ChunkMessage,
   ChunkAckMessage,

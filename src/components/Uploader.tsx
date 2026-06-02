@@ -39,6 +39,10 @@ export default function Uploader({
     onStop()
   }, [stop, onStop])
 
+  useEffect(() => {
+    console.log('[Uploader] mounted, peer.id:', peer.id)
+  }, [peer.id])
+
   const activeDownloaders = connections.filter(
     (conn) => conn.status === UploaderConnectionStatus.Uploading,
   ).length
@@ -69,7 +73,7 @@ export default function Uploader({
       {fileInfo ? (
         <div className="mt-6">
           <h3 className="text-sm font-semibold text-stone-500 dark:text-stone-400 mb-2">
-            File hashes
+            Uploading files with hashes
           </h3>
           <UploadFileList files={fileInfo} />
         </div>

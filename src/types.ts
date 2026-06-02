@@ -23,8 +23,11 @@ export type UploaderConnection = {
   mobileVendor?: string
   mobileModel?: string
   uploadingFileName?: string
+  uploadingFileSize?: number
   uploadingOffset?: number
   acknowledgedBytes?: number
+  bytesTransferred: number
+  totalBytes: number
   completedFiles: number
   totalFiles: number
   currentFileProgress: number

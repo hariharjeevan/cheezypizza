@@ -28,3 +28,11 @@ declare module '*.webp' {
   const content: string
   export default content
 }
+
+declare global {
+  interface Window {
+    showSaveFilePicker?: typeof window.showSaveFilePicker
+  }
+}
+
+export {}

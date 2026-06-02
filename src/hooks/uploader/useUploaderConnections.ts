@@ -13,7 +13,7 @@ import {
 } from '../../messages'
 import { z } from 'zod'
 import { getFileName } from '../../fs'
-import { buildFileInfo } from './fileInfo'
+import { buildFileInfoImmediate, computeHashByName } from './fileInfo'
 import {
   createSenderState,
   clearBufferedAmountLowListener,
@@ -23,6 +23,25 @@ import {
 } from './sender'
 
 const PROGRESS_INTERVAL_MS = 250
+
+function waitForBufferDrain(conn: DataConnection): Promise<void> {
+  return new Promise((resolve) => {
+    const dc = (conn as unknown as { dataChannel: RTCDataChannel | null })
+      .dataChannel
+    if (!dc || dc.bufferedAmount === 0) {
+      resolve()
+      return
+    }
+    const check = () => {
+      if (dc.bufferedAmount === 0) {
+        resolve()
+      } else {
+        setTimeout(check, 100)
+      }
+    }
+    setTimeout(check, 100)
+  })
+}
 
 export function useUploaderConnections(
   peer: Peer,
@@ -34,7 +53,8 @@ export function useUploaderConnections(
     fileName: string
     size: number
     type: string
-    sha256: string
+    sha256: string | undefined
+    hashProgress?: number
   }> | null
 } {
   const [connections, setConnections] = useState<Array<UploaderConnection>>([])
@@ -42,13 +62,16 @@ export function useUploaderConnections(
     fileName: string
     size: number
     type: string
-    sha256: string
+    sha256: string | undefined
+    hashProgress?: number
   }> | null>(null)
 
   const connectionsRef = useRef<Array<UploaderConnection>>(connections)
   useEffect(() => {
     connectionsRef.current = connections
   }, [connections])
+
+  const resolvedHashesRef = useRef<Record<string, string>>({})
 
   useEffect(() => {
     console.log(
@@ -57,22 +80,15 @@ export function useUploaderConnections(
       'files',
     )
     setFileInfo(null)
+    resolvedHashesRef.current = {}
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     let cancelled = false
-    const fileInfoPromise = buildFileInfo(files)
 
-    fileInfoPromise
-      .then((info) => {
-        if (!cancelled) setFileInfo(info)
-      })
-      .catch((err) => {
-        if (!cancelled)
-          console.error(
-            '[UploaderConnections] failed to compute file info:',
-            err,
-          )
-      })
+    const immediateInfo = buildFileInfoImmediate(files)
+    setFileInfo(immediateInfo.map((fi) => ({ ...fi, sha256: undefined })))
 
     const cleanupHandlers: Array<() => void> = []
+    const totalBytes = files.reduce((sum, f) => sum + f.size, 0)
 
     const listener = (conn: DataConnection) => {
       console.log('[UploaderConnections] new connection from peer', conn.peer)
@@ -88,10 +104,9 @@ export function useUploaderConnections(
       }
 
       const sender = createSenderState()
-      // Acked bytes tracked in a ref — progress interval reads it
       const ackedBytesRef = { current: 0 }
-      const speedBpsRef = { current: 0 } // written by external useTransferStats or inline EMA
-      // Inline EMA state (per-connection, no hook needed here)
+      const bytesTransferredRef = { current: 0 }
+      const speedBpsRef = { current: 0 }
       let emaSpeed: number | null = null
       let emaSamples = 0
       let lastEmaBytes = 0
@@ -105,7 +120,6 @@ export function useUploaderConnections(
         )
       }
 
-      // Progress + speed flush every 250ms
       const progressInterval = setInterval(() => {
         const now = Date.now()
         const elapsed = (now - lastEmaTime) / 1000
@@ -130,13 +144,14 @@ export function useUploaderConnections(
             const file = files.find(
               (f) => getFileName(f) === sender.currentFileName,
             )
-            const progress =
+            const fileProgress =
               file && file.size > 0
                 ? Math.min(newAcked / file.size, 1)
                 : c.currentFileProgress
             if (
               c.acknowledgedBytes === newAcked &&
-              c.currentFileProgress === progress &&
+              c.currentFileProgress === fileProgress &&
+              c.bytesTransferred === bytesTransferredRef.current &&
               c.speedBytesPerSec === speedBps
             )
               return c
@@ -146,7 +161,9 @@ export function useUploaderConnections(
             return {
               ...c,
               acknowledgedBytes: newAcked,
-              currentFileProgress: progress,
+              currentFileProgress: fileProgress,
+              uploadingFileSize: file?.size,
+              bytesTransferred: bytesTransferredRef.current,
               speedBytesPerSec: speedBps,
               etaSeconds: eta ?? undefined,
             }
@@ -173,7 +190,10 @@ export function useUploaderConnections(
             dataConnection: conn,
             completedFiles: 0,
             totalFiles: files.length,
+            bytesTransferred: 0,
+            totalBytes,
             currentFileProgress: 0,
+            uploadingFileSize: undefined,
             acknowledgedBytes: 0,
             speedBytesPerSec: undefined,
             etaSeconds: undefined,
@@ -181,6 +201,24 @@ export function useUploaderConnections(
           ...withoutOld,
         ]
       })
+
+      const sendInfoAndKnownHashes = () => {
+        safeSendOnConn(
+          conn,
+          { type: MessageType.Info, files: immediateInfo } as Message,
+          'Info',
+        )
+
+        Object.entries(resolvedHashesRef.current).forEach(
+          ([fileName, sha256]) => {
+            safeSendOnConn(
+              conn,
+              { type: MessageType.HashUpdate, fileName, sha256 } as Message,
+              'HashUpdate(catch-up)',
+            )
+          },
+        )
+      }
 
       const onData = (data: unknown): void => {
         try {
@@ -217,17 +255,7 @@ export function useUploaderConnections(
                   ? d
                   : { ...d, ...state, status: UploaderConnectionStatus.Ready },
               )
-              fileInfoPromise
-                .then((info) => {
-                  safeSendOnConn(
-                    conn,
-                    { type: MessageType.Info, files: info } as Message,
-                    'Info',
-                  )
-                })
-                .catch((err) =>
-                  console.error('[UploaderConnections] fileInfo error:', err),
-                )
+              sendInfoAndKnownHashes()
               break
             }
 
@@ -239,17 +267,7 @@ export function useUploaderConnections(
                     ? d
                     : { ...d, status: UploaderConnectionStatus.Ready },
                 )
-                fileInfoPromise
-                  .then((info) => {
-                    safeSendOnConn(
-                      conn,
-                      { type: MessageType.Info, files: info } as Message,
-                      'Info(post-auth)',
-                    )
-                  })
-                  .catch((err) =>
-                    console.error('[UploaderConnections] fileInfo error:', err),
-                  )
+                sendInfoAndKnownHashes()
               } else {
                 updateConnection((d) =>
                   d.status !== UploaderConnectionStatus.Authenticating
@@ -294,6 +312,8 @@ export function useUploaderConnections(
                   ...d,
                   status: UploaderConnectionStatus.Uploading,
                   uploadingFileName: fileName,
+                  uploadingFileSize: file.size,
+                  uploadingOffset: offset,
                   acknowledgedBytes: offset,
                   currentFileProgress: file.size > 0 ? offset / file.size : 0,
                 }
@@ -317,16 +337,24 @@ export function useUploaderConnections(
             case MessageType.ChunkAck: {
               const ack = message as z.infer<typeof ChunkAckMessage>
               const file = files.find((f) => getFileName(f) === ack.fileName)
-              const cap = file?.size ?? Number.MAX_SAFE_INTEGER
-              ackedBytesRef.current = Math.min(
-                ackedBytesRef.current + ack.bytesReceived,
-                cap,
-              )
+
+              if (ack.fileName === sender.currentFileName) {
+                const cap = file?.size ?? Number.MAX_SAFE_INTEGER
+                ackedBytesRef.current = Math.min(
+                  ackedBytesRef.current + ack.bytesReceived,
+                  cap,
+                )
+              } else {
+                break
+              }
 
               if (
                 sender.finalChunkSent &&
                 ackedBytesRef.current >= (file?.size ?? 0)
               ) {
+                const fileName = ack.fileName
+                bytesTransferredRef.current += file?.size ?? 0
+                ackedBytesRef.current = 0
                 stopProgress()
                 setConnections((conns) =>
                   conns.map((c) => {
@@ -335,13 +363,60 @@ export function useUploaderConnections(
                       ...c,
                       status: UploaderConnectionStatus.Ready,
                       completedFiles: c.completedFiles + 1,
+                      bytesTransferred: bytesTransferredRef.current,
+                      uploadingFileName: undefined,
+                      uploadingFileSize: undefined,
+                      uploadingOffset: undefined,
                       currentFileProgress: 0,
-                      acknowledgedBytes: ackedBytesRef.current,
+                      acknowledgedBytes: 0,
                       speedBytesPerSec: undefined,
                       etaSeconds: undefined,
                     }
                   }),
                 )
+                waitForBufferDrain(conn)
+                  .then(() =>
+                    computeHashByName(fileName, files, (progress) => {
+                      setFileInfo((prev) => {
+                        if (!prev) return prev
+                        return prev.map((fi) =>
+                          fi.fileName === fileName
+                            ? { ...fi, hashProgress: progress }
+                            : fi,
+                        )
+                      })
+                    }),
+                  )
+                  .then((sha256) => {
+                    if (!sha256) return
+                    resolvedHashesRef.current[fileName] = sha256
+                    connectionsRef.current.forEach((c) => {
+                      if (
+                        c.dataConnection.open &&
+                        c.status !== UploaderConnectionStatus.Done &&
+                        c.status !== UploaderConnectionStatus.Closed &&
+                        c.status !== UploaderConnectionStatus.InvalidPassword
+                      ) {
+                        safeSendOnConn(
+                          c.dataConnection,
+                          {
+                            type: MessageType.HashUpdate,
+                            fileName,
+                            sha256,
+                          } as Message,
+                          'HashUpdate',
+                        )
+                      }
+                    })
+                    setFileInfo((prev) => {
+                      if (!prev) return prev
+                      return prev.map((fi) =>
+                        fi.fileName === fileName
+                          ? { ...fi, sha256, hashProgress: undefined }
+                          : fi,
+                      )
+                    })
+                  })
               }
               break
             }

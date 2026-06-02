@@ -52,6 +52,18 @@ export function ConnectionListItem({
     return `${h}h ${m}m`
   }
 
+  const totalProgress =
+    conn.totalBytes > 0
+      ? Math.min(
+          (conn.bytesTransferred +
+            (conn.uploadingFileSize ?? 0) * conn.currentFileProgress) /
+            conn.totalBytes,
+          1,
+        )
+      : conn.completedFiles === conn.totalFiles
+        ? 1
+        : (conn.completedFiles + conn.currentFileProgress) / conn.totalFiles
+
   return (
     <div className="w-full mt-4">
       <div className="flex justify-between items-center mb-2">
@@ -87,14 +99,7 @@ export function ConnectionListItem({
             )}
         </div>
       </div>
-      <ProgressBar
-        value={
-          conn.completedFiles === conn.totalFiles
-            ? 1
-            : (conn.completedFiles + conn.currentFileProgress) / conn.totalFiles
-        }
-        max={1}
-      />
+      <ProgressBar value={totalProgress} max={1} />
 
       {conn.status === UploaderConnectionStatus.Uploading && (
         <div className="mt-2 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">

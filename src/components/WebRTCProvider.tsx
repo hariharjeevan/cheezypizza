@@ -40,7 +40,7 @@ async function getOrCreateGlobalPeer(): Promise<Peer> {
     console.log('[WebRTCProvider] path:', path)
 
     globalPeer = new Peer({
-      debug: 3,
+      debug: 0,
       host,
       path,
       config: {

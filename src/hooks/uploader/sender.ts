@@ -3,9 +3,9 @@ import { UploadedFile } from '../../types'
 import { getFileName } from '../../fs'
 import { Message, MessageType } from '../../messages'
 
-export const MAX_CHUNK_SIZE = 64 * 1024 // 64 KB
-const HIGH_WATERMARK = 4 * 1024 * 1024 // 4 MB — pause sending
-const LOW_WATERMARK = 512 * 1024 // 512 KB — resume sending
+export const MAX_CHUNK_SIZE = 64 * 1024 // 64 KB chunks
+const HIGH_WATERMARK = 4 * 1024 * 1024 // pause when buffered amount is high
+const LOW_WATERMARK = 512 * 1024 // resume when buffered amount falls below this
 
 export function isFinalChunk(end: number, fileSize: number): boolean {
   return end === fileSize
@@ -61,9 +61,6 @@ export function createSenderState(): SenderState {
   }
 }
 
-/**
- * Call this on Pause and on Close to prevent phantom resumes.
- */
 export function clearBufferedAmountLowListener(
   conn: DataConnection,
   state: SenderState,
@@ -75,43 +72,74 @@ export function clearBufferedAmountLowListener(
   }
 }
 
-/**
- * Drive sending until the DataChannel buffer hits HIGH_WATERMARK,
- * then arm a one-shot bufferedamountlow listener to resume at LOW_WATERMARK.
- * RTT is no longer on the critical path.
- */
+async function readChunkWithRetry(
+  blob: Blob,
+  retries = 3,
+  delayMs = 500,
+): Promise<ArrayBuffer> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await blob.arrayBuffer()
+    } catch (err) {
+      const isReadable =
+        err instanceof DOMException && err.name === 'NotReadableError'
+      if (!isReadable || attempt === retries) throw err
+      console.warn(
+        `[Sender] NotReadableError on chunk read, retry ${attempt + 1}/${retries}`,
+      )
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+    }
+  }
+  // should never reach here
+  throw new Error('readChunkWithRetry exhausted')
+}
+
 export function runSendWindow(
   conn: DataConnection,
   files: UploadedFile[],
   state: SenderState,
 ): void {
   if (state.paused || state.finalChunkSent) return
-
   const dc = getRawDC(conn)
   if (!dc || dc.readyState !== 'open') {
     console.warn('[Sender] sendWindow: DC not open')
     state.paused = true
     return
   }
-
   const file = files.find((f) => getFileName(f) === state.currentFileName)
   if (!file) return
 
+  void sendLoop(conn, dc, file, files, state)
+}
+
+async function sendLoop(
+  conn: DataConnection,
+  dc: RTCDataChannel,
+  file: UploadedFile,
+  files: UploadedFile[],
+  state: SenderState,
+): Promise<void> {
   while (!state.paused && !state.finalChunkSent) {
     if (dc.bufferedAmount >= HIGH_WATERMARK) {
-      // Arm one-shot resume listener
       if (state.onBufferedAmountLow) {
         dc.removeEventListener('bufferedamountlow', state.onBufferedAmountLow)
       }
       dc.bufferedAmountLowThreshold = LOW_WATERMARK
-      state.onBufferedAmountLow = () => {
-        state.onBufferedAmountLow = null
-        runSendWindow(conn, files, state)
-      }
-      dc.addEventListener('bufferedamountlow', state.onBufferedAmountLow, {
-        once: true,
+      await new Promise<void>((resolve) => {
+        state.onBufferedAmountLow = () => {
+          state.onBufferedAmountLow = null
+          resolve()
+        }
+        dc.addEventListener('bufferedamountlow', state.onBufferedAmountLow, {
+          once: true,
+        })
       })
-      return
+      if (state.paused || state.finalChunkSent) return
+      if (dc.readyState !== 'open' || !conn.open) {
+        state.paused = true
+        return
+      }
+      continue
     }
 
     if (!conn.open) {
@@ -124,15 +152,22 @@ export function runSendWindow(
     const final = isFinalChunk(end, file.size)
     const chunkOffset = state.nextOffset
 
-    console.log(
-      `[Sender] chunk ${state.currentFileName} (${chunkOffset}-${end}/${file.size}) final=${final}`,
-    )
+    let buffer: ArrayBuffer
+    try {
+      buffer = await readChunkWithRetry(file.slice(chunkOffset, end))
+    } catch (err) {
+      console.error('[Sender] failed to read chunk after retries:', err)
+      state.paused = true
+      return
+    }
+
+    if (state.paused) return
 
     const request: Message = {
       type: MessageType.Chunk,
       fileName: state.currentFileName!,
       offset: chunkOffset,
-      bytes: file.slice(chunkOffset, end),
+      bytes: buffer,
       final,
     }
 

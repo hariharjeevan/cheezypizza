@@ -1,6 +1,6 @@
 'use client'
 
-import React, { JSX, useCallback, useState } from 'react'
+import React, { JSX, useCallback, useMemo, useState } from 'react'
 import WebRTCPeerProvider from '../components/WebRTCProvider'
 import DropZone from '../components/DropZone'
 import UploadFileList from '../components/UploadFileList'
@@ -10,7 +10,6 @@ import StartButton from '../components/StartButton'
 import { UploadedFile } from '../types'
 import Spinner from '../components/Spinner'
 import CancelButton from '../components/CancelButton'
-import { useMemo } from 'react'
 import { getFileName } from '../fs'
 import TitleText from '../components/TitleText'
 import SubtitleText from '../components/SubtitleText'
@@ -98,7 +97,6 @@ function UploadingState({
   password: string
   onStop: () => void
 }): JSX.Element {
-  const fileListData = useUploaderFileListData(uploadedFiles)
   return (
     <PageWrapper>
       <TitleText>
@@ -107,7 +105,6 @@ function UploadingState({
       <SubtitleText>
         Leave this tab open. CheezyPizza does not store files.
       </SubtitleText>
-      <UploadFileList files={fileListData} />
       <WebRTCPeerProvider>
         <Uploader files={uploadedFiles} password={password} onStop={onStop} />
       </WebRTCPeerProvider>
