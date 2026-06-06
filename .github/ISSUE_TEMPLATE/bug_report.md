@@ -9,11 +9,11 @@ assignees: ''
 
 ## What happened?
 
-A clear description of the bug. What did you see? 
+<!-- A clear description of the bug. What did you see? -->
  
 ## What did you expect?
  
-What should have happened instead?
+<!-- What should have happened instead? -->
  
 ## Steps to reproduce
  
@@ -24,6 +24,7 @@ What should have happened instead?
 ## Environment
  
 | | |
+|---|---|
 | Browser | <!-- e.g. Chrome 125, Firefox 126, Safari 17 --> |
 | OS | <!-- e.g. Ubuntu 24, macOS 14, Windows 11, iOS 17 --> |
 | Device | <!-- Desktop / Mobile --> |
@@ -32,6 +33,7 @@ What should have happened instead?
 ## Transfer details (if relevant)
  
 | | |
+|---|---|
 | File size | <!-- approximate, e.g. "2 GB" --> |
 | File type | <!-- e.g. zip, mp4, folder --> |
 | Number of files | |
