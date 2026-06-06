@@ -1402,8 +1402,13 @@ export function useDownloader(uploaderPeerID: string): {
     }
   }, [])
 
+  const statRecordedRef = useRef(false)
+
   useEffect(() => {
     if (!isDone || !filesInfo) return
+    if (statRecordedRef.current) return
+    statRecordedRef.current = true
+
     const totalBytes = filesInfo.reduce((acc, f) => acc + f.size, 0)
     fetch('/api/stats/record', {
       method: 'POST',
