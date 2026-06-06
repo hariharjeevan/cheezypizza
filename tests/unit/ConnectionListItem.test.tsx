@@ -8,6 +8,8 @@ import { UploaderConnectionStatus } from '../../src/types'
 const baseConn = {
   status: UploaderConnectionStatus.Uploading,
   dataConnection: {} as any,
+  bytesTransferred: 500,
+  totalBytes: 1000,
   completedFiles: 1,
   totalFiles: 2,
   currentFileProgress: 0.5,
