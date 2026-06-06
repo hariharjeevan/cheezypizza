@@ -13,17 +13,17 @@ export const metadata = {
   description:
     'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
 
-  metadataBase: new URL('https://cheezypizza.vercel.app'),
+  metadataBase: new URL('https://cheezypizza.in'),
 
   openGraph: {
     title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
     description:
       'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
-    url: 'https://cheezypizza.vercel.app',
+    url: 'https://cheezypizza.in',
     siteName: 'CheezyPizza',
     images: [
       {
-        url: 'https://file.pizza/images/fb.png',
+        url: 'https://cheezypizza.in/images/OG.png',
         width: 1200,
         height: 630,
         alt: 'CheezyPizza Peer-to-Peer File Sharing',
@@ -37,7 +37,7 @@ export const metadata = {
     title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
     description:
       'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
-    images: ['https://file.pizza/images/fb.png'],
+    images: ['https://cheezypizza.in/images/OG.png'],
   },
 }
 
