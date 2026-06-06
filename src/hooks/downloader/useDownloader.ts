@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { ChunkMessage, Message, MessageType } from '../../messages'
 import { FileInfo, FileWriter } from './types'
 import { closeWriter, openWriter } from './opfsWriter'
-import { makeProcessChunk } from './processChunk'
+import { makeProcessChunk, makeProcessChunkStreaming } from './processChunk'
 import { hashFile } from './cryptoDownloader'
 import { useTransferStats } from './useTransferStats'
 import {
@@ -23,9 +23,21 @@ import {
   streamDownloadMultipleFiles,
   type DownloadFileEntry,
 } from '../../utils/download'
+import {
+  openSingleFileStream,
+  openMultiFileZipStream,
+  type SingleFileStreamController,
+  type MultiFileStreamController,
+} from '../../utils/streamingDownload'
 import { setRotating } from '../useRotatingSpinner'
 
 const getZipFilename = (): string => `CheezyPizza-download-${Date.now()}.zip`
+
+// Auto-reconnect config
+const MAX_AUTO_RECONNECT_ATTEMPTS = 2
+const RECONNECT_BASE_DELAY_MS = 1000
+// How long speed must be 0 (after first chunk) before we treat it as a stall
+const STALL_TIMEOUT_MS = 15_000
 
 type PendingDownload =
   | {
@@ -81,6 +93,12 @@ export function useDownloader(uploaderPeerID: string): {
   isWaitingForUploaderHash: boolean
   hashingProgress: Record<string, number>
   hasPendingDownload: boolean
+  readPasteBlob: () => Promise<string | null>
+  // New
+  quotaExceeded: boolean
+  startStreamingDownload: () => Promise<void>
+  isReconnecting: boolean
+  isStreamingDownload: boolean
 } {
   const [filesInfo, setFilesInfo] = useState<FileInfo[] | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -106,6 +124,8 @@ export function useDownloader(uploaderPeerID: string): {
     useState(false)
   const [pendingDownload, setPendingDownload] =
     useState<PendingDownload | null>(null)
+  const [quotaExceeded, setQuotaExceeded] = useState(false)
+  const [isReconnecting, setIsReconnecting] = useState(false)
 
   const filesInfoRef = useRef<FileInfo[] | null>(null)
   const fileHashesRef = useRef<Record<string, string>>({})
@@ -125,6 +145,30 @@ export function useDownloader(uploaderPeerID: string): {
     null,
   )
   const idbGettersRef = useRef<Record<string, () => Promise<Blob>>>({})
+
+  // Auto-reconnect state
+  const autoReconnectAttemptsRef = useRef(0)
+  const isIntentionalDisconnectRef = useRef(false)
+  const isDownloadingRef = useRef(false)
+  const isReconnectingRef = useRef(false)
+  const firstChunkReceivedRef = useRef(false)
+
+  // Streaming path state (quota-exceeded)
+  const [isStreamingDownload, setIsStreamingDownload] = useState(false)
+  const isStreamingModeRef = useRef(false)
+  const singleStreamControllerRef = useRef<SingleFileStreamController | null>(
+    null,
+  )
+  const multiStreamControllerRef = useRef<MultiFileStreamController | null>(
+    null,
+  )
+  const streamingBytesWrittenRef = useRef<Record<string, number>>({})
+
+  // Keep isDownloading in a ref for use inside callbacks without stale closure
+  useEffect(() => {
+    isDownloadingRef.current = isDownloading
+  }, [isDownloading])
+
   const resetInfoPromise = useCallback(() => {
     infoPromiseRef.current = new Promise<void>((resolve, reject) => {
       infoResolveRef.current = resolve
@@ -216,7 +260,7 @@ export function useDownloader(uploaderPeerID: string): {
     ((message: z.infer<typeof ChunkMessage>) => Promise<void>) | null
   >(null)
 
-  // ── session cleanup helpers ────────────────────────────────────────────────
+  // session cleanup helpers
 
   const flushAndCloseAllWriters = useCallback(async () => {
     const current = activeWritersRef.current
@@ -343,15 +387,19 @@ export function useDownloader(uploaderPeerID: string): {
             )
             setVerifiedHashes((prev) => ({ ...prev, [fileName]: localHash }))
           } else {
-            // No uploader hash received after waiting - cannot verify integrity
+            // Uploader hash not received after waiting — file transferred
+            // successfully but integrity cannot be confirmed. Do NOT delete
+            // the file; let the user save it with a warning.
             console.warn(
-              `[Downloader] uploader hash not received for ${fileName} - file cannot be verified`,
+              `[Downloader] uploader hash not received for ${fileName} - saving without verification`,
             )
-            integrityErrors.push({
-              fileName,
-              reason: `Integrity check failed for ${fileName}: uploader hash not received. Cannot verify file integrity.`,
-            })
-            continue
+            setFileErrors((prev) => ({
+              ...prev,
+              [fileName]: `${fileName} could not be verified (uploader hash not received). The file may still be intact.`,
+            }))
+            // Mark in verifiedHashes so saveFiles guard passes and
+            // the file is included in pendingDownload.
+            setVerifiedHashes((prev) => ({ ...prev, [fileName]: localHash }))
           }
         } catch (integrityErr) {
           console.error('[Downloader] integrity check failed:', integrityErr)
@@ -549,6 +597,140 @@ export function useDownloader(uploaderPeerID: string): {
     setPendingDownload(null)
   }, [pendingDownload, uploaderPeerID, verifiedHashes])
 
+  // Auto-reconnect logic
+
+  const attemptAutoReconnectRef = useRef<() => Promise<void>>(async () => {})
+
+  const attemptAutoReconnect = useCallback(async () => {
+    // Delegate to the ref so recursive calls are always fresh
+    return attemptAutoReconnectRef.current()
+  }, [])
+
+  useEffect(() => {
+    attemptAutoReconnectRef.current = async () => {
+      // Guard: only one reconnect loop at a time
+      if (isReconnectingRef.current) return
+
+      if (autoReconnectAttemptsRef.current >= MAX_AUTO_RECONNECT_ATTEMPTS) {
+        setIsReconnecting(false)
+        isReconnectingRef.current = false
+        setIsDownloading(false)
+        setErrorMessage(
+          'Connection lost and could not be restored. Your progress has been saved — you can resume once reconnected.',
+        )
+        return
+      }
+
+      isReconnectingRef.current = true
+      setIsReconnecting(true)
+      autoReconnectAttemptsRef.current++
+
+      const delay = RECONNECT_BASE_DELAY_MS * autoReconnectAttemptsRef.current
+      console.log(
+        `[Downloader] auto-reconnect attempt ${autoReconnectAttemptsRef.current} in ${delay}ms`,
+      )
+      await new Promise((r) => setTimeout(r, delay))
+
+      const callbacks = connectionCallbacksRef.current
+      if (!callbacks) {
+        setIsReconnecting(false)
+        isReconnectingRef.current = false
+        return
+      }
+
+      resetInfoPromise()
+      const connected = await connect(callbacks)
+      if (!connected) {
+        console.warn('[Downloader] auto-reconnect failed to connect')
+        isReconnectingRef.current = false
+        // Retry — call through the ref so the next attempt uses the latest closure
+        attemptAutoReconnectRef.current()
+        return
+      }
+
+      const infoReady = await waitForInfo()
+      if (!infoReady) {
+        console.warn('[Downloader] auto-reconnect: info not received')
+        isReconnectingRef.current = false
+        attemptAutoReconnectRef.current()
+        return
+      }
+
+      // Success — reset counters and resume from current writer offsets
+      console.log('[Downloader] auto-reconnect succeeded')
+      autoReconnectAttemptsRef.current = 0
+      isReconnectingRef.current = false
+      setIsReconnecting(false)
+
+      // Re-send Start for every file whose writer is still active
+      const writers = activeWritersRef.current
+      for (const [fileName, writer] of Object.entries(writers)) {
+        if (!writer.finalized) {
+          const resumeOffset = writer.nextExpectedOffset
+          console.log(
+            `[Downloader] re-requesting ${fileName} from offset ${resumeOffset}`,
+          )
+          safeSend({
+            type: MessageType.Start,
+            fileName,
+            offset: resumeOffset,
+          } as z.infer<typeof Message>)
+        }
+      }
+    }
+  }, [connect, waitForInfo, resetInfoPromise, safeSend])
+
+  // Stall watchdog
+  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const speedBytesPerSecRef = useRef<number | undefined>(speedBytesPerSec)
+  useEffect(() => {
+    speedBytesPerSecRef.current = speedBytesPerSec
+  }, [speedBytesPerSec])
+
+  useEffect(() => {
+    if (!isDownloading || isReconnecting || isStreamingModeRef.current) {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current)
+        stallTimerRef.current = null
+      }
+      return
+    }
+
+    // Speed is undefined until the first interval tick (1s).
+    // Also treat undefined as non-zero so we don't fire on startup.
+    if (speedBytesPerSec === undefined || speedBytesPerSec > 0) {
+      // Speed is fine — cancel any pending stall timer
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current)
+        stallTimerRef.current = null
+      }
+      return
+    }
+
+    // Speed is 0 and we haven't started a stall timer yet
+    if (!stallTimerRef.current && firstChunkReceivedRef.current) {
+      stallTimerRef.current = setTimeout(() => {
+        stallTimerRef.current = null
+        if (
+          isDownloadingRef.current &&
+          !isReconnectingRef.current &&
+          !isIntentionalDisconnectRef.current &&
+          !isStreamingModeRef.current
+        ) {
+          console.log('[Downloader] stall detected — attempting auto-reconnect')
+          attemptAutoReconnect()
+        }
+      }, STALL_TIMEOUT_MS)
+    }
+
+    return () => {
+      if (stallTimerRef.current) {
+        clearTimeout(stallTimerRef.current)
+        stallTimerRef.current = null
+      }
+    }
+  }, [isDownloading, isReconnecting, speedBytesPerSec, attemptAutoReconnect])
+
   //connection setup
 
   useEffect(() => {
@@ -608,10 +790,21 @@ export function useDownloader(uploaderPeerID: string): {
         )
       },
       onChunk: (message) => {
+        firstChunkReceivedRef.current = true
         processChunkRef.current?.(message)
       },
       onError: (msg) => {
-        setErrorMessage(msg)
+        // If a download is in progress, swallow the error message here —
+        // onClose fires right after and will trigger auto-reconnect.
+        // Only surface the error if we are NOT actively downloading.
+        if (!isDownloadingRef.current || isIntentionalDisconnectRef.current) {
+          setErrorMessage(msg)
+        } else {
+          console.warn(
+            '[Downloader] connection error during download (will attempt reconnect):',
+            msg,
+          )
+        }
         setIsConnected(false)
       },
       onClose: () => {
@@ -623,6 +816,18 @@ export function useDownloader(uploaderPeerID: string): {
           infoPromiseRef.current = null
           infoResolveRef.current = null
           infoRejectRef.current = null
+        }
+
+        if (
+          isDownloadingRef.current &&
+          !isIntentionalDisconnectRef.current &&
+          !isReconnectingRef.current &&
+          !isStreamingModeRef.current
+        ) {
+          console.log(
+            '[Downloader] unexpected connection close during download — attempting auto-reconnect',
+          )
+          attemptAutoReconnect()
         }
       },
     }
@@ -636,10 +841,15 @@ export function useDownloader(uploaderPeerID: string): {
     return () => {
       disconnect()
     }
-  }, [uploaderPeerID, connect, disconnect, resetInfoPromise])
+  }, [
+    uploaderPeerID,
+    connect,
+    disconnect,
+    resetInfoPromise,
+    attemptAutoReconnect,
+  ])
 
   // submitPassword
-
   const submitPassword = useCallback(
     (pass: string) => {
       safeSend({ type: MessageType.UsePassword, password: pass } as z.infer<
@@ -648,8 +858,6 @@ export function useDownloader(uploaderPeerID: string): {
     },
     [safeSend],
   )
-
-  // startDownload
 
   const startDownload = useCallback(async () => {
     if (!filesInfo) return
@@ -703,19 +911,16 @@ export function useDownloader(uploaderPeerID: string): {
       }
 
       if (available < totalBytes) {
-        const shortfall = totalBytes - available
-        const formatBytes = (bytes: number): string => {
-          if (bytes >= 1_073_741_824)
-            return `${(bytes / 1_073_741_824).toFixed(1)} GB`
-          if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`
-          return `${(bytes / 1024).toFixed(1)} KB`
-        }
-        setErrorMessage(
-          `Not enough storage space. Need ${formatBytes(shortfall)} more space to download these files.`,
-        )
+        setQuotaExceeded(true)
         return
       }
     }
+
+    setQuotaExceeded(false)
+    isStreamingModeRef.current = false
+    isIntentionalDisconnectRef.current = false
+    autoReconnectAttemptsRef.current = 0
+    firstChunkReceivedRef.current = false
 
     setIsDownloading(true)
     setIsPaused(false)
@@ -888,9 +1093,202 @@ export function useDownloader(uploaderPeerID: string): {
     dataConnectionRef,
   ])
 
+  const startStreamingDownload = useCallback(async () => {
+    if (!filesInfo) return
+
+    // Ensure connection is open
+    if (!dataConnectionRef.current?.open) {
+      const callbacks = connectionCallbacksRef.current
+      if (!callbacks) {
+        setErrorMessage('Unable to connect to the uploader. Please try again.')
+        return
+      }
+      resetInfoPromise()
+      const connected = await connect(callbacks)
+      if (!connected) {
+        setErrorMessage('Unable to connect to the uploader. Please try again.')
+        return
+      }
+      const infoReady = await waitForInfo()
+      if (!infoReady) {
+        setErrorMessage('Unable to receive file information. Please try again.')
+        return
+      }
+    }
+
+    const currentFilesInfo = filesInfo
+    const isMulti = currentFilesInfo.length > 1
+
+    let singleController: SingleFileStreamController | null = null
+    let multiController: MultiFileStreamController | null = null
+
+    try {
+      const onSinkAborted = () => {
+        if (!isStreamingModeRef.current) return
+        console.log('[Downloader] sink aborted — stopping transfer')
+        // Marked as intentional BEFORE closing the connection so that the
+        // synchronous onClose callback doesn't trigger auto-reconnect.
+        isIntentionalDisconnectRef.current = true
+        isDownloadingRef.current = false
+        isStreamingModeRef.current = false
+        setIsStreamingDownload(false)
+        singleStreamControllerRef.current = null
+        multiStreamControllerRef.current = null
+        processChunkRef.current = null
+        safeSend({ type: MessageType.Pause } as z.infer<typeof Message>)
+        const conn = dataConnectionRef.current
+        if (conn?.open) conn.close()
+        // Reset the intentional flag after the close event has had a chance
+        // to fire (it's synchronous in PeerJS but we use setTimeout to be safe)
+        setTimeout(() => {
+          isIntentionalDisconnectRef.current = false
+        }, 0)
+        setIsDownloading(false)
+        setRotating(false)
+        setQuotaExceeded(false)
+      }
+
+      if (isMulti) {
+        multiController = await openMultiFileZipStream(
+          getZipFilename(),
+          onSinkAborted,
+        )
+        // Begin the first file's zip entry immediately
+        multiController.beginFile(currentFilesInfo[0].fileName)
+      } else {
+        const info = currentFilesInfo[0]
+        singleController = await openSingleFileStream(
+          info.fileName,
+          info.size,
+          onSinkAborted,
+        )
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // User cancelled the file picker — don't set an error, just bail
+        return
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      setErrorMessage(`Could not open download destination: ${msg}`)
+      return
+    }
+
+    isStreamingModeRef.current = true
+    singleStreamControllerRef.current = singleController
+    multiStreamControllerRef.current = multiController
+    streamingBytesWrittenRef.current = {}
+
+    setIsStreamingDownload(true)
+    setQuotaExceeded(false)
+    setIsDownloading(true)
+    setIsPaused(false)
+    setFileErrors({})
+    setPendingDownload(null)
+    setIsVerifying(false)
+    setIsWaitingForUploaderHash(false)
+    setHashingProgress({})
+    setComputedHashes({})
+    completedCountRef.current = 0
+    completedFilesRef.current = []
+    setBytesDownloaded(0)
+
+    let nextFileIndex = 1 // index 0 already started
+    const bytesWrittenPerFile = streamingBytesWrittenRef.current
+
+    const onFileComplete = (fileName: string) => {
+      completedFilesRef.current = [...completedFilesRef.current, fileName]
+      completedCountRef.current++
+
+      if (completedCountRef.current >= currentFilesInfo.length) {
+        // All done — finalize zip if multi
+        if (multiController) {
+          multiController.finalize()
+        }
+        safeSend({ type: MessageType.Done } as z.infer<typeof Message>)
+        setDone(true)
+        setIsDownloading(false)
+        setRotating(false)
+        isStreamingModeRef.current = false
+        setIsStreamingDownload(false)
+        singleStreamControllerRef.current = null
+        multiStreamControllerRef.current = null
+      }
+    }
+
+    const onFileError = (fileName: string, reason: string) => {
+      setFileErrors((prev) => ({ ...prev, [fileName]: reason }))
+      completedCountRef.current++
+
+      // Mark intentional and update the ref directly before closing the
+      // connection so onClose doesn't trigger auto-reconnect.
+      isIntentionalDisconnectRef.current = true
+      isDownloadingRef.current = false
+      isStreamingModeRef.current = false
+      setIsStreamingDownload(false)
+      singleStreamControllerRef.current = null
+      multiStreamControllerRef.current = null
+      processChunkRef.current = null
+
+      singleController?.abort(reason).catch(() => {})
+      multiController?.abort(reason).catch(() => {})
+
+      safeSend({ type: MessageType.Pause } as z.infer<typeof Message>)
+      const conn = dataConnectionRef.current
+      if (conn?.open) conn.close()
+      setTimeout(() => {
+        isIntentionalDisconnectRef.current = false
+      }, 0)
+
+      setIsDownloading(false)
+      setRotating(false)
+      setErrorMessage(`Download failed: ${reason}`)
+    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const onFileTransferComplete = (fileName: string) => {
+      if (!isMulti || nextFileIndex >= currentFilesInfo.length) return
+      // Begin next zip entry before requesting next file
+      const nextFile = currentFilesInfo[nextFileIndex]
+      multiController!.beginFile(nextFile.fileName)
+      // Request next file from uploader
+      safeSend({
+        type: MessageType.Start,
+        fileName: nextFile.fileName,
+        offset: 0,
+      } as z.infer<typeof Message>)
+      nextFileIndex++
+    }
+
+    processChunkRef.current = makeProcessChunkStreaming({
+      filesInfo: currentFilesInfo,
+      singleController,
+      multiController,
+      safeSend,
+      setBytesDownloaded,
+      onFileTransferComplete,
+      onFileComplete,
+      onFileError,
+      bytesWrittenPerFile,
+    })
+
+    // Request the first file (offset 0 — no resume on streaming path)
+    safeSend({
+      type: MessageType.Start,
+      fileName: currentFilesInfo[0].fileName,
+      offset: 0,
+    } as z.infer<typeof Message>)
+  }, [
+    filesInfo,
+    safeSend,
+    connect,
+    waitForInfo,
+    resetInfoPromise,
+    dataConnectionRef,
+  ])
+
   // pauseDownload
 
   const pauseDownload = useCallback(async () => {
+    isIntentionalDisconnectRef.current = true
     setIsDownloading(false)
     setIsPaused(true)
     await flushAndCloseAllWriters()
@@ -902,6 +1300,7 @@ export function useDownloader(uploaderPeerID: string): {
       conn.close()
     }
 
+    isIntentionalDisconnectRef.current = false
     processChunkRef.current = null
     localHashPromisesRef.current = {}
 
@@ -934,6 +1333,7 @@ export function useDownloader(uploaderPeerID: string): {
   // stopDownload
 
   const stopDownload = useCallback(async () => {
+    isIntentionalDisconnectRef.current = true
     await flushAndCloseAllWriters()
 
     if (dataConnectionRef.current) {
@@ -941,6 +1341,22 @@ export function useDownloader(uploaderPeerID: string): {
       const conn = dataConnectionRef.current
       dataConnectionRef.current = null
       conn.close()
+    }
+
+    isIntentionalDisconnectRef.current = false
+
+    // Abort streaming controllers if active
+    if (isStreamingModeRef.current) {
+      singleStreamControllerRef.current
+        ?.abort('User stopped download')
+        .catch(() => {})
+      multiStreamControllerRef.current
+        ?.abort('User stopped download')
+        .catch(() => {})
+      isStreamingModeRef.current = false
+      setIsStreamingDownload(false)
+      singleStreamControllerRef.current = null
+      multiStreamControllerRef.current = null
     }
 
     await clearAllOPFSData()
@@ -957,10 +1373,44 @@ export function useDownloader(uploaderPeerID: string): {
     setHashingProgress({})
     setIsWaitingForUploaderHash(false)
     setPendingDownload(null)
+    setQuotaExceeded(false)
+    setIsReconnecting(false)
+    isReconnectingRef.current = false
+    autoReconnectAttemptsRef.current = 0
+    firstChunkReceivedRef.current = false
     localHashesRef.current = {}
     completedCountRef.current = 0
     completedFilesRef.current = []
   }, [safeSend, flushAndCloseAllWriters, clearAllOPFSData, dataConnectionRef])
+
+  const readPasteBlob = useCallback(async (): Promise<string | null> => {
+    const PASTE_FILENAME = '___pasted___.txt'
+    try {
+      const handle = opfsHandlesRef.current[PASTE_FILENAME]
+      if (handle) {
+        const file = await handle.getFile()
+        return await file.text()
+      }
+      const getter = idbGettersRef.current[PASTE_FILENAME]
+      if (getter) {
+        const blob = await getter()
+        return await blob.text()
+      }
+      return null
+    } catch {
+      return null
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isDone || !filesInfo) return
+    const totalBytes = filesInfo.reduce((acc, f) => acc + f.size, 0)
+    fetch('/api/stats/record', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bytes: totalBytes }),
+    }).catch(() => {})
+  }, [isDone, filesInfo])
 
   return {
     filesInfo,
@@ -987,5 +1437,10 @@ export function useDownloader(uploaderPeerID: string): {
     isWaitingForUploaderHash,
     hashingProgress,
     hasPendingDownload: pendingDownload !== null,
+    readPasteBlob,
+    quotaExceeded,
+    startStreamingDownload,
+    isReconnecting,
+    isStreamingDownload,
   }
 }

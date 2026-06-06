@@ -15,6 +15,7 @@
   --pizza-text-muted: #78716c;
   --pizza-accent: #dc2626;
   --pizza-accent-warm: #d97706;
+  --hljs-bg: #fafafa;
 }
 
 .dark {
@@ -49,3 +50,72 @@ body {
   flex-direction: column;
   min-height: 100dvh;
 }
+
+:root {
+  --text-title:    1rem;       /* 16px — page titles */
+  --text-body:     0.875rem;   /* 14px — body / labels */
+  --text-meta:     0.75rem;    /* 12px — hashes, captions, hints */
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;           /* 40px */
+  padding: 0 1.25rem;
+  font-size: var(--text-body);
+  font-weight: 600;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s, opacity 0.15s, transform 0.1s;
+  background: linear-gradient(to bottom, #fb923c, #ea580c);
+  color: #fff;
+}
+.btn-primary:hover  { background: linear-gradient(to bottom, #f97316, #dc2626); }
+.btn-primary:active { transform: scale(0.98); }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Secondary: outlined — Cancel, Stop, secondary actions */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1.25rem;
+  font-size: var(--text-body);
+  font-weight: 600;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.1s;
+  background: transparent;
+  border: 1px solid;
+  border-color: #fde68a;          /* amber-200 */
+  color: #44403c;                 /* stone-700 */
+}
+.dark .btn-secondary {
+  border-color: #78350f;          /* amber-900 */
+  color: #fef3c7;                 /* amber-100 */
+}
+.btn-secondary:hover  { background-color: rgba(251,191,36,0.12); border-color: #f97316; }
+.btn-secondary:active { transform: scale(0.98); }
+
+/* Ghost: no border — low-priority text actions (Cancel in dropzone, Start over) */
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  font-size: var(--text-body);
+  font-weight: 500;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: color 0.15s;
+  background: transparent;
+  color: #78716c;                 /* stone-500 */
+}
+.dark .btn-ghost { color: #a8a29e; }
+.btn-ghost:hover { color: #1c1917; }
+.dark .btn-ghost:hover { color: #f5f5f4; }

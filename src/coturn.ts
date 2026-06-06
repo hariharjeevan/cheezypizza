@@ -26,6 +26,9 @@ export async function setTurnCredentials(
   }
 
   const redis = getRedisClient()
+  if (!redis) {
+    throw new Error('Redis is not configured')
+  }
 
   const hmacKey = generateHMACKey(username, realm, password)
   const key = `turn/realm/${realm}/user/${username}/key`

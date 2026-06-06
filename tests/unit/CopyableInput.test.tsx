@@ -13,9 +13,9 @@ Object.assign(navigator, {
 
 describe('CopyableInput', () => {
   it('copies text when button clicked', async () => {
-    const { getByText } = render(<CopyableInput label="URL" value="hello" />)
+    const { getByRole } = render(<CopyableInput label="URL" value="hello" />)
     await act(async () => {
-      fireEvent.click(getByText('Copy'))
+      fireEvent.click(getByRole('button', { name: /copy/i }))
     })
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('hello')
   })

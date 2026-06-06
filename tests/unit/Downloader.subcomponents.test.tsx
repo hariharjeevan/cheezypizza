@@ -47,14 +47,14 @@ describe('Downloader subcomponents', () => {
 
   it('PasswordEntry submits value', () => {
     let submitted = ''
-    const { getByPlaceholderText, getByText } = render(
+    const { getByPlaceholderText, getByRole } = render(
       <PasswordEntry errorMessage={null} onSubmit={(v) => (submitted = v)} />,
     )
     fireEvent.change(
       getByPlaceholderText('Enter a secret password for this slice of CheezyPizza...'),
       { target: { value: 'secret' } },
     )
-    fireEvent.submit(getByText('Unlock'))
+    fireEvent.click(getByRole('button', { name: 'Unlock' }))
     expect(submitted).toBe('secret')
   })
 })

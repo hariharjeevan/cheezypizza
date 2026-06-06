@@ -19,7 +19,7 @@ export default function Navbar(): JSX.Element {
           className="flex items-center shrink-0 hover:opacity-75 transition-opacity duration-200"
           aria-label="CheezyPizza home"
         >
-          <Wordmark className="h-9 w-auto" />
+          <Wordmark className="h-7 sm:h-8 md:h-9 w-auto max-w-[140px] sm:max-w-[180px] md:max-w-none" />
         </Link>
 
         {/* right controls */}

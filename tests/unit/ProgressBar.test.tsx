@@ -6,7 +6,7 @@ import ProgressBar from '../../src/components/ProgressBar'
 
 describe('ProgressBar', () => {
   it('shows percentage', () => {
-    const { getAllByText } = render(<ProgressBar value={50} max={100} />)
-    expect(getAllByText('50%').length).toBeGreaterThan(0)
+    const { getByText } = render(<ProgressBar value={50} max={100} />)
+    expect(getByText('50%')).toBeInTheDocument()
   })
 })

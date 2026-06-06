@@ -35,32 +35,14 @@ export async function uploadFile(
     page.getByText('Peer-to-peer file transfers in your browser.'),
   ).toBeVisible()
 
-  // Wait for drop zone button to be ready
-  await expect(page.locator('#drop-zone-button')).toBeVisible()
+  // Wait for the file picker option to be ready
+  await expect(page.getByRole('button', { name: /select file/i })).toBeVisible()
 
-  // Upload file using the file input and trigger change event
-  await page.evaluate(
-    ({ testContent, testFileName }) => {
-      const input = document.querySelector(
-        'input[type="file"]',
-      ) as HTMLInputElement
-      if (input) {
-        const file = new File([testContent], testFileName, {
-          type: 'text/plain',
-        })
-        const dataTransfer = new DataTransfer()
-        dataTransfer.items.add(file)
-        input.files = dataTransfer.files
+  // Upload the file through the hidden file input
+  await page.setInputFiles('input[type="file"]', testFile.path)
 
-        // Manually trigger the change event
-        const event = new Event('change', { bubbles: true })
-        input.dispatchEvent(event)
-      }
-    },
-    { testContent: testFile.content, testFileName: testFile.name },
-  )
-
-  // Wait for file to be processed and confirm upload page to appear
+  // Wait for the file to appear in the upload confirmation flow
+  await expect(page.getByText(testFile.name)).toBeVisible({ timeout: 10000 })
   await expect(page.getByText(/You are about to start uploading/i)).toBeVisible(
     { timeout: 10000 },
   )
@@ -70,26 +52,7 @@ export async function addFile(
   page: Page,
   testFile: TestFile,
 ): Promise<void> {
-  await page.evaluate(
-    ({ testContent, testFileName }) => {
-      const input = document.querySelector(
-        '#add-files-input',
-      ) as HTMLInputElement
-      if (input) {
-        const file = new File([testContent], testFileName, {
-          type: 'text/plain',
-        })
-        const dataTransfer = new DataTransfer()
-        dataTransfer.items.add(file)
-        input.files = dataTransfer.files
-
-        const event = new Event('change', { bubbles: true })
-        input.dispatchEvent(event)
-      }
-    },
-    { testContent: testFile.content, testFileName: testFile.name },
-  )
-
+  await page.setInputFiles('#add-files-input', testFile.path)
   await expect(page.getByText(testFile.name)).toBeVisible({ timeout: 5000 })
 }
 
@@ -123,6 +86,7 @@ export async function downloadFile(
   await expect(page.getByText(testFile.name)).toBeVisible({
     timeout: 10000,
   })
+  await expect(page.locator('#download-button')).toBeVisible({ timeout: 10000 })
 
   // Start download
   const downloadPromise = page.waitForEvent('download')
@@ -174,8 +138,21 @@ export async function createBrowserContexts(browser: Browser): Promise<{
   const downloaderPage = await downloaderContext.newPage()
 
   const cleanup = async () => {
-    await uploaderContext.close()
-    await downloaderContext.close()
+    try {
+      await uploaderContext.close()
+    } catch (error) {
+      if (!String(error).includes('Target page, context or browser has been closed')) {
+        throw error
+      }
+    }
+
+    try {
+      await downloaderContext.close()
+    } catch (error) {
+      if (!String(error).includes('Target page, context or browser has been closed')) {
+        throw error
+      }
+    }
   }
 
   return { uploaderPage, downloaderPage, cleanup }

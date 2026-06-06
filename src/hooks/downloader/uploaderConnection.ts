@@ -85,8 +85,42 @@ export function useUploaderConnection(uploaderPeerID: string) {
         dataConnectionRef.current = null
       }
 
+      // reconnect
+      if (peer.disconnected && !peer.destroyed) {
+        console.log('[Downloader] peer signalling disconnected — reconnecting')
+        peer.reconnect()
+        await new Promise<void>((resolve, reject) => {
+          const onOpen = () => {
+            peer.off('error', onErr)
+            resolve()
+          }
+          const onErr = (err: Error) => {
+            peer.off('open', onOpen)
+            reject(err)
+          }
+          peer.once('open', onOpen)
+          peer.once('error', onErr)
+          setTimeout(() => {
+            peer.off('open', onOpen)
+            peer.off('error', onErr)
+            reject(new Error('Signalling reconnect timed out'))
+          }, 10_000)
+        })
+      }
+
+      if (peer.destroyed) {
+        console.error('[Downloader] peer is destroyed, cannot connect')
+        return false
+      }
+
       console.log('[Downloader] connecting to uploader', uploaderPeerID)
       const conn = peer.connect(uploaderPeerID, { reliable: true })
+
+      if (!conn) {
+        console.error('[Downloader] peer.connect() returned undefined')
+        return false
+      }
+
       dataConnectionRef.current = conn
 
       let resolvePromise: () => void = () => {}

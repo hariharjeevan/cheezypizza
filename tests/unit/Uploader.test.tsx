@@ -11,7 +11,7 @@ vi.mock('../../src/components/WebRTCProvider', () => ({
 vi.mock('../../src/hooks/useUploaderChannel', () => ({
   useUploaderChannel: (...args: any[]) => mockUseUploaderChannel(...args),
 }))
-vi.mock('../../src/hooks/useUploaderConnections', () => ({
+vi.mock('../../src/hooks/uploader/useUploaderConnections', () => ({
   useUploaderConnections: () => ({ connections: [], fileInfo: null }),
 }))
 vi.mock('react-qr-code', () => ({ default: () => <div>QR</div> }))

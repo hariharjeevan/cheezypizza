@@ -40,7 +40,7 @@ export default function ProgressBar({
   return (
     <div
       id="progress-bar"
-      className="w-full h-12 rounded-[10px] overflow-hidden relative shadow-inner
+      className="w-full h-8 sm:h-10 rounded-[10px] overflow-hidden relative shadow-inner
         bg-amber-100 dark:bg-stone-800"
     >
       {/* Fill */}

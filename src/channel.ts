@@ -212,7 +212,11 @@ export class RedisChannelRepo implements ChannelRepo {
   client: Redis
 
   constructor() {
-    this.client = getRedisClient()
+    const redis = getRedisClient()
+    if (!redis) {
+      throw new Error('Redis is not configured')
+    }
+    this.client = redis
   }
 
   async createChannel(

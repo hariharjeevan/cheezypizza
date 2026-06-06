@@ -6,16 +6,38 @@ import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
 import { Viewport } from 'next'
 import { ViewTransitions } from 'next-view-transitions'
 import Navbar from '../components/Navbar'
+import 'highlight.js/styles/atom-one-dark.css'
 
 export const metadata = {
-  title: 'CheezyPizza • Your files, delivered.',
-  description: 'Peer-to-peer file transfers in your web browser.',
-  charSet: 'utf-8',
+  title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
+  description:
+    'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
+
+  metadataBase: new URL('https://cheezypizza.vercel.app'),
+
   openGraph: {
-    url: 'https://github.com/hariharjeevan/cheezypizza',
-    title: 'CheezyPizza • Your files, delivered.',
-    description: 'Peer-to-peer file transfers in your web browser.',
-    images: [{ url: 'https://file.pizza/images/fb.png' }],
+    title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
+    description:
+      'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
+    url: 'https://cheezypizza.vercel.app',
+    siteName: 'CheezyPizza',
+    images: [
+      {
+        url: 'https://file.pizza/images/fb.png',
+        width: 1200,
+        height: 630,
+        alt: 'CheezyPizza Peer-to-Peer File Sharing',
+      },
+    ],
+    type: 'website',
+  },
+
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
+    description:
+      'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
+    images: ['https://file.pizza/images/fb.png'],
   },
 }
 

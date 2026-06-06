@@ -13,6 +13,7 @@ import TitleText from './TitleText'
 import ReturnHome from './ReturnHome'
 import { pluralize } from '../utils/pluralize'
 import { ErrorMessage } from './ErrorMessage'
+import PastePreviewModal, { isPasteFile } from './PastePreviewModal'
 
 interface FileInfo {
   fileName: string
@@ -142,6 +143,8 @@ export function DownloadInProgress({
   speedBytesPerSec,
   etaSeconds,
   hashingProgress,
+  isReconnecting,
+  isStreaming,
 }: {
   filesInfo: FileInfo[]
   bytesDownloaded: number
@@ -151,6 +154,8 @@ export function DownloadInProgress({
   speedBytesPerSec?: number
   etaSeconds?: number
   hashingProgress?: Record<string, number>
+  isReconnecting?: boolean
+  isStreaming?: boolean
 }): JSX.Element {
   const filesWithHashProgress = filesInfo.map((f) => ({
     ...f,
@@ -167,21 +172,36 @@ export function DownloadInProgress({
         <div className="w-full">
           <ProgressBar value={bytesDownloaded} max={totalSize} />
           <div className="mt-2 flex justify-between text-xs text-stone-500 dark:text-stone-400">
-            <span>{formatSpeed(speedBytesPerSec)}</span>
-            <span>{formatETA(etaSeconds)}</span>
+            <span>
+              {isReconnecting
+                ? 'Reconnecting...'
+                : formatSpeed(speedBytesPerSec)}
+            </span>
+            <span>{isReconnecting ? '' : formatETA(etaSeconds)}</span>
           </div>
         </div>
-        <p className="text-xs text-center text-stone-500 dark:text-stone-400">
-          Your progress is saved — you can safely close this tab and resume
-          later.
-        </p>
+        {isReconnecting ? (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Connection interrupted — reconnecting and resuming your download…
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-center text-stone-500 dark:text-stone-400">
+            Your progress is saved — you can safely close this tab and resume
+            later.
+          </p>
+        )}
         <div className="flex justify-center gap-3 w-full">
-          <button
-            onClick={onPause}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-stone-200 dark:bg-stone-700 text-stone-800 dark:text-stone-100 hover:bg-stone-300 dark:hover:bg-stone-600 transition-colors"
-          >
-            Pause
-          </button>
+          {!isStreaming && (
+            <button
+              onClick={onPause}
+              className="btn-secondary"
+              disabled={isReconnecting}
+            >
+              Pause
+            </button>
+          )}
           <StopButton onClick={onStop} isDownloading />
         </div>
       </div>
@@ -226,10 +246,7 @@ export function ResumePrompt({
         </div>
         <div className="flex flex-col space-y-3">
           <DownloadButton onClick={onResume} label="Resume download" />
-          <button
-            onClick={onStartOver}
-            className="text-sm text-stone-500 dark:text-stone-400 underline underline-offset-2 hover:text-stone-700 dark:hover:text-stone-200 transition-colors"
-          >
+          <button onClick={onStartOver} className="btn-ghost">
             Start over from the beginning
           </button>
         </div>
@@ -245,15 +262,21 @@ export function ReadyToDownload({
   filesInfo: FileInfo[]
   onStart: () => void
 }): JSX.Element {
+  const isPaste = filesInfo.length === 1 && isPasteFile(filesInfo[0].fileName)
+
   return (
     <>
       <TitleText>
-        You are about to start downloading{' '}
-        {pluralize(filesInfo.length, 'file', 'files')}.
+        {isPaste
+          ? 'You have received a text snippet.'
+          : `You are about to start downloading ${pluralize(filesInfo.length, 'file', 'files')}.`}
       </TitleText>
       <div className="flex flex-col space-y-5 w-full">
-        <UploadFileList files={filesInfo} />
-        <DownloadButton onClick={onStart} />
+        {!isPaste && <UploadFileList files={filesInfo} />}
+        <DownloadButton
+          onClick={onStart}
+          label={isPaste ? 'Receive snippet' : undefined}
+        />
       </div>
     </>
   )
@@ -301,6 +324,42 @@ export function PasswordEntry({
   )
 }
 
+export function QuotaExceeded({
+  filesInfo,
+  onStreamingDownload,
+  onStop,
+}: {
+  filesInfo: FileInfo[]
+  onStreamingDownload: () => void
+  onStop: () => void
+}): JSX.Element {
+  return (
+    <>
+      <TitleText>Not enough storage space.</TitleText>
+      <div className="flex flex-col space-y-5 w-full">
+        <UploadFileList files={filesInfo} />
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 space-y-2">
+          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+            Your browser doesn&apos;t have enough quota to store this download.
+          </p>
+          <p className="text-xs text-amber-800 dark:text-amber-200">
+            You can still download directly to your device — the file will be
+            saved straight to disk as it arrives. This skips resume support, so
+            keep this tab open until the download finishes.
+          </p>
+        </div>
+        <DownloadButton
+          onClick={onStreamingDownload}
+          label="Download directly to disk"
+        />
+        <button onClick={onStop} className="btn-ghost">
+          Cancel
+        </button>
+      </div>
+    </>
+  )
+}
+
 export default function Downloader({
   uploaderPeerID,
 }: {
@@ -330,11 +389,26 @@ export default function Downloader({
     hashingProgress,
     speedBytesPerSec,
     etaSeconds,
+    readPasteBlob,
+    quotaExceeded,
+    startStreamingDownload,
+    isReconnecting,
+    isStreamingDownload,
   } = useDownloader(uploaderPeerID)
 
   const [ignoreSavedProgress, setIgnoreSavedProgress] = useState(false)
-  // Tracks whether the user has successfully saved the files (post isDone)
   const [isSaved, setIsSaved] = useState(false)
+  const [showPasteModal, setShowPasteModal] = useState(false)
+
+  // Auto-open paste modal once transfer is done and it's a paste file
+  const isPasteTransfer =
+    filesInfo?.length === 1 && isPasteFile(filesInfo[0].fileName)
+
+  useEffect(() => {
+    if (isDone && isPasteTransfer && !showPasteModal) {
+      setShowPasteModal(true)
+    }
+  }, [isDone, isPasteTransfer])
 
   const hasResumableProgress =
     !ignoreSavedProgress && Object.values(resumeOffsets).some((o) => o > 0)
@@ -355,7 +429,6 @@ export default function Downloader({
     computedSha256: computedHashes[f.fileName],
   }))
 
-  // local hashing in progress (we have progress numbers)
   const isLocallyHashing = Object.keys(hashingProgress).length > 0
 
   if (isLocallyHashing && filesWithComputedHashes && filesInfo) {
@@ -364,7 +437,6 @@ export default function Downloader({
       hashProgress: hashingProgress[f.fileName],
     }))
 
-    // Calculate size-weighted hash progress
     let totalHashBytes = 0
     let hashedBytes = 0
     for (const f of filesInfo) {
@@ -375,7 +447,6 @@ export default function Downloader({
       totalHashBytes > 0 ? hashedBytes / totalHashBytes : 0
     const hashPercentage = Math.round(weightedHashProgress * 100)
 
-    // Count files by status
     const filesHashing = filesWithHashProgress.filter(
       (f) => typeof f.hashProgress === 'number' && (f.hashProgress ?? 0) < 1,
     ).length
@@ -412,7 +483,6 @@ export default function Downloader({
     )
   }
 
-  // local hash done, waiting for uploader's hash to arrive
   if (isWaitingForUploaderHash && filesWithComputedHashes) {
     return (
       <>
@@ -435,7 +505,6 @@ export default function Downloader({
     )
   }
 
-  // Legacy isVerifying fallback
   if (isVerifying && filesWithComputedHashes) {
     return (
       <>
@@ -458,7 +527,34 @@ export default function Downloader({
     )
   }
 
-  // Transfer complete — user must click to trigger the browser save dialog
+  // Paste transfer complete — show modal, no save button needed
+  if (isDone && isPasteTransfer && filesInfo) {
+    return (
+      <>
+        <TitleText>Text snippet received.</TitleText>
+        <div className="flex flex-col space-y-5 w-full items-center">
+          <p className="text-sm text-stone-500 dark:text-stone-400 text-center">
+            The snippet is ready to copy.
+          </p>
+          <button
+            onClick={() => setShowPasteModal(true)}
+            className="btn-primary"
+          >
+            View & Copy
+          </button>
+          <ReturnHome />
+        </div>
+        {showPasteModal && (
+          <PastePreviewModal
+            readPasteBlob={readPasteBlob}
+            onClose={() => setShowPasteModal(false)}
+          />
+        )}
+      </>
+    )
+  }
+
+  // Regular transfer complete — ready to save
   if (isDone && filesInfo && !isSaved) {
     const hasErrors = Object.keys(fileErrors).length > 0
 
@@ -514,7 +610,6 @@ export default function Downloader({
     )
   }
 
-  // User clicked save — show completion screen
   if (isDone && isSaved && filesInfo) {
     return (
       <DownloadComplete
@@ -531,6 +626,17 @@ export default function Downloader({
   if (isPasswordRequired) {
     return (
       <PasswordEntry errorMessage={errorMessage} onSubmit={submitPassword} />
+    )
+  }
+
+  // Quota-exceeded — offer streaming fallback before showing error
+  if (quotaExceeded && filesInfo) {
+    return (
+      <QuotaExceeded
+        filesInfo={filesInfo}
+        onStreamingDownload={startStreamingDownload}
+        onStop={stopDownload}
+      />
     )
   }
 
@@ -554,6 +660,8 @@ export default function Downloader({
         speedBytesPerSec={speedBytesPerSec}
         etaSeconds={etaSeconds}
         hashingProgress={hashingProgress}
+        isReconnecting={isReconnecting}
+        isStreaming={isStreamingDownload}
       />
     )
   }

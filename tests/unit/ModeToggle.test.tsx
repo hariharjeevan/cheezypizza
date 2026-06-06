@@ -10,7 +10,7 @@ vi.mock('next-themes', () => ({ useTheme: () => ({ setTheme, resolvedTheme: 'lig
 describe('ModeToggle', () => {
   it('toggles theme', () => {
     const { getByRole } = render(<ModeToggle />)
-    fireEvent.click(getByRole('button'))
+    fireEvent.click(getByRole('button', { name: 'Toggle colour mode' }))
     expect(setTheme).toHaveBeenCalledWith('dark')
   })
 })

@@ -9,10 +9,9 @@ Object.defineProperty(window, 'location', {
   writable: true,
 })
 
-// describe('Footer', () => {
-//   it('redirects to donate link', () => {
-//     const { getByText } = render(<Footer />)
-//     fireEvent.click(getByText('Donate'))
-//     expect(window.location.href).toContain('coinbase')
-//   })
-// })
+describe('Footer', () => {
+  it('renders the GitHub project link', () => {
+    const { getByLabelText } = render(<Footer />)
+    expect(getByLabelText('CheezyPizza on GitHub')).toBeInTheDocument()
+  })
+})

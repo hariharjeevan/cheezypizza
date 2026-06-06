@@ -8,7 +8,7 @@ import ReturnHome from '../../src/components/ReturnHome'
 
 describe('ReturnHome', () => {
   it('links to home', () => {
-    const { getByText } = render(<ReturnHome />)
-    expect(getByText(/Serve up/).getAttribute('href')).toBe('/')
+    const { getByRole } = render(<ReturnHome />)
+    expect(getByRole('link', { name: /Serve up a fresh slice/i }).getAttribute('href')).toBe('/')
   })
 })

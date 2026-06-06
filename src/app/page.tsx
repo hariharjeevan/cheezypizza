@@ -17,12 +17,18 @@ import { pluralize } from '../utils/pluralize'
 import TermsAcceptance from '../components/TermsAcceptance'
 import AddFilesButton from '../components/AddFilesButton'
 import FeatureMenu from '../components/FeatureMenu'
+import StatsBar from '../components/StatsBar'
 
 function PageWrapper({ children }: { children: React.ReactNode }): JSX.Element {
   return (
-    <div className="flex flex-col items-center space-y-5 py-10 max-w-2xl mx-auto px-4">
-      <Spinner direction="up" />
-      {children}
+    <div
+      style={{ minHeight: '600px' }}
+      className="flex flex-col items-center justify-start"
+    >
+      <div className="flex flex-col items-center space-y-5 py-10 max-w-4xl w-full mx-auto px-4">
+        <Spinner direction="up" />
+        {children}
+      </div>
     </div>
   )
 }
@@ -39,6 +45,7 @@ function InitialState({
       </div>
       <DropZone onDrop={onDrop} />
       <TermsAcceptance />
+      <StatsBar />
       <FeatureMenu />
     </PageWrapper>
   )

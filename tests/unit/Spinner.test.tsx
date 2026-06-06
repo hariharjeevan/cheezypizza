@@ -10,10 +10,11 @@ describe('Spinner', () => {
   it('reflects rotating state', () => {
     // @ts-ignore
     act(() => { setRotating(true) })
-// @ts-ignore
-    const { getByLabelText } = render(<Spinner />)
+    // @ts-ignore
+    const { getByLabelText, queryByLabelText } = render(<Spinner />)
     expect(getByLabelText('Rotating pizza')).toBeInTheDocument()
     // @ts-ignore
     act(() => { setRotating(false) })
+    expect(queryByLabelText('Rotating pizza')).not.toBeInTheDocument()
   })
 })

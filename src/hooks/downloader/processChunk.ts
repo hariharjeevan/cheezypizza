@@ -4,6 +4,10 @@ import { FileWriter, FileInfo } from './types'
 import { normalizeChunkBytes } from './cryptoDownloader'
 import { saveProgress } from '../../utils/resumeStore'
 import { setRotating } from '../useRotatingSpinner'
+import type {
+  SingleFileStreamController,
+  MultiFileStreamController,
+} from '../../utils/streamingDownload'
 
 const PROGRESS_SAVE_INTERVAL = 4 * 1024 * 1024
 
@@ -156,5 +160,104 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
         console.error('[Downloader] write/finalize error for', fileName, err)
         onFileError(fileName, `Download failed for ${fileName}: ${err.message}`)
       })
+  }
+}
+
+// Streaming path (no storage)
+
+export interface StreamingChunkProcessorDeps {
+  filesInfo: FileInfo[]
+  singleController: SingleFileStreamController | null
+  multiController: MultiFileStreamController | null
+  safeSend: (message: z.infer<typeof Message>) => void
+  setBytesDownloaded: React.Dispatch<React.SetStateAction<number>>
+  onFileTransferComplete: (fileName: string) => void
+  onFileComplete: (fileName: string) => void
+  onFileError: (fileName: string, reason: string) => void
+  /** Tracks bytes written per file so we can verify size on final chunk */
+  bytesWrittenPerFile: Record<string, number>
+}
+
+export function makeProcessChunkStreaming(deps: StreamingChunkProcessorDeps) {
+  const {
+    filesInfo,
+    singleController,
+    multiController,
+    safeSend,
+    setBytesDownloaded,
+    onFileTransferComplete,
+    onFileComplete,
+    onFileError,
+    bytesWrittenPerFile,
+  } = deps
+
+  return async function processChunkStreaming(
+    message: z.infer<typeof ChunkMessage>,
+  ): Promise<void> {
+    const chunk = await normalizeChunkBytes(message.bytes)
+    const fileName = message.fileName
+    const chunkOffset = message.offset
+    const isFinal = message.final
+    const chunkSize = chunk.byteLength
+
+    // Streaming path has no resume — offset must always be sequential.
+    // If we get an out-of-order chunk something has gone wrong.
+    const expectedOffset = bytesWrittenPerFile[fileName] ?? 0
+    if (chunkOffset !== expectedOffset) {
+      console.error('[Downloader/streaming] unexpected chunk offset', {
+        fileName,
+        chunkOffset,
+        expectedOffset,
+      })
+      onFileError(fileName, `Unexpected chunk offset for ${fileName}`)
+      return
+    }
+
+    try {
+      if (singleController) {
+        await singleController.writeChunk(chunk, isFinal)
+      } else if (multiController) {
+        multiController.writeChunk(chunk, isFinal)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[Downloader/streaming] write error for', fileName, err)
+      onFileError(fileName, `Streaming write failed for ${fileName}: ${msg}`)
+      return
+    }
+
+    bytesWrittenPerFile[fileName] = expectedOffset + chunkSize
+    setBytesDownloaded((bd) => bd + chunkSize)
+    setRotating(true)
+
+    safeSend({
+      type: MessageType.ChunkAck,
+      fileName,
+      offset: chunkOffset,
+      bytesReceived: chunkSize,
+    } as z.infer<typeof Message>)
+
+    if (isFinal) {
+      const fileInfo = filesInfo.find((f) => f.fileName === fileName)
+      const totalWritten = bytesWrittenPerFile[fileName]
+
+      if (fileInfo && totalWritten !== fileInfo.size) {
+        console.error('[Downloader/streaming] size mismatch on final chunk', {
+          fileName,
+          written: totalWritten,
+          expected: fileInfo.size,
+        })
+        onFileError(fileName, `Size mismatch after final chunk for ${fileName}`)
+        return
+      }
+
+      if (multiController) {
+        // For multi-file zip: finalization of the zip entry was already
+        // signalled inside writeChunk(isFinal=true). Just notify progress.
+      }
+
+      onFileTransferComplete(fileName)
+      onFileComplete(fileName)
+    }
   }
 }

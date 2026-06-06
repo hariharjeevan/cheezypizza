@@ -1,6 +1,7 @@
 'use client'
 import React, { JSX } from 'react'
 import { GoHeartFill } from 'react-icons/go'
+import StatsBar from '../components/StatsBar'
 
 const GITHUB_URL = 'https://github.com/hariharjeevan/cheezypizza'
 
@@ -50,7 +51,7 @@ export function Footer(): JSX.Element {
         <div className="h-0.5 w-full bg-gradient-to-r from-transparent via-amber-400 dark:via-amber-600 to-transparent" />
         <div className="max-w-3xl mx-auto px-4 py-3 flex flex-col items-center gap-1.5">
           <div className="max-w-3xl mx-auto px-4 py-3 flex flex-col items-center gap-1.5">
-            <div className="flex items-center gap-2 text-m">
+            <div className="flex items-center gap-2 text-sm">
               <span className="flex items-center gap-1 text-stone-700 dark:text-stone-300 font-semibold">
                 Made with{' '}
                 <div className="text-[#ff4d6d]">
@@ -68,7 +69,7 @@ export function Footer(): JSX.Element {
               target="_blank"
               rel="noopener noreferrer"
               aria-label="CheezyPizza on GitHub"
-              className="flex items-center gap-1 text-m font-medium px-7 py-5 rounded-full
+              className="flex items-center gap-1 text-sm font-medium px-7 py-5 rounded-full
                 border border-amber-300 dark:border-stone-600
                 text-amber-800 dark:text-stone-300
                 hover:bg-amber-100 dark:hover:bg-stone-800
@@ -95,6 +96,7 @@ export function Footer(): JSX.Element {
                 FAQ
               </FooterLink> */}
             </p>
+            <StatsBar variant="footer" />
           </div>
         </div>
       </footer>
