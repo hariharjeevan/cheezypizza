@@ -29,8 +29,10 @@ export default function FeatureMenu() {
     <>
       <style>{`
         .fm-wrap {
-          max-width: 520px;
           width: 100%;
+          display: flex;
+          flex-direction: column;
+          align-self: stretch;
         }
         .fm-paper {
           background: var(--pizza-bg);
@@ -38,6 +40,10 @@ export default function FeatureMenu() {
           border-radius: 3px;
           padding: 0 2rem;
           position: relative;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
         }
         .fm-paper::before {
           content: '';
@@ -49,6 +55,9 @@ export default function FeatureMenu() {
         }
         .fm-inner {
           padding: 1.5rem 0;
+          flex: 1;
+          display: flex;
+          flex-direction: column;
         }
         .fm-eyebrow {
           font-family: 'DM Mono', 'Courier New', monospace;
@@ -117,14 +126,14 @@ export default function FeatureMenu() {
         }
         .fm-sub {
           font-family: 'DM Mono', 'Courier New', monospace;
-          font-size: 16px;
+          font-size: 11px;
           color: var(--pizza-text-muted);
           letter-spacing: 0.06em;
           text-transform: uppercase;
           margin-bottom: 4px;
         }
         .fm-desc {
-          font-size: 16px;
+          font-size: 15px;
           color: var(--pizza-text-muted);
           line-height: 1.55;
         }

@@ -18,6 +18,7 @@ import TermsAcceptance from '../components/TermsAcceptance'
 import AddFilesButton from '../components/AddFilesButton'
 import FeatureMenu from '../components/FeatureMenu'
 import StatsBar from '../components/StatsBar'
+import WhatIsCheezyPizza from '../components/WhatIsCheezyPizza'
 
 function PageWrapper({ children }: { children: React.ReactNode }): JSX.Element {
   return (
@@ -46,7 +47,14 @@ function InitialState({
       <DropZone onDrop={onDrop} />
       <TermsAcceptance />
       <StatsBar />
-      <FeatureMenu />
+      <div className="flex flex-col lg:flex-row lg:items-start gap-5 w-full max-w-4xl">
+        <div className="flex-1 min-w-0">
+          <WhatIsCheezyPizza />
+        </div>
+        <div className="flex-1 min-w-0">
+          <FeatureMenu />
+        </div>
+      </div>
     </PageWrapper>
   )
 }
