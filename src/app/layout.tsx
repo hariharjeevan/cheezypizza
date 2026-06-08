@@ -1,4 +1,5 @@
 import React from 'react'
+import Script from 'next/script'
 import Footer from '../components/Footer'
 import '../styles.css'
 import { ThemeProvider } from '../components/ThemeProvider'
@@ -91,6 +92,11 @@ export default function RootLayout({
         </head>
         <body>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+            <Script
+              src="https://static.cloudflareinsights.com/beacon.min.js"
+              data-cf-beacon='{"token": "345a2254fa94545bf88d65926273523", "spa": true}'
+              strategy="afterInteractive"
+            />
             <FilePizzaQueryClientProvider>
               <Navbar />
               <main>{children}</main>

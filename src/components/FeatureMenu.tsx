@@ -38,7 +38,7 @@ export default function FeatureMenu() {
           background: var(--pizza-bg);
           border: 1.5px solid var(--pizza-border);
           border-radius: 3px;
-          padding: 0 2rem;
+          padding: 0 2rem 1.7rem;
           position: relative;
           flex: 1;
           display: flex;
@@ -167,7 +167,7 @@ export default function FeatureMenu() {
         <div className="fm-paper">
           <div className="fm-inner">
             <p className="fm-eyebrow">today&apos;s specialities</p>
-            <p className="fm-title">What makes us different</p>
+            <p className="fm-title">What makes us different?</p>
             <div className="fm-rule">
               <span>✦</span>
             </div>

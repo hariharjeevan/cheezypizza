@@ -1,39 +1,29 @@
-import { NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { setTurnCredentials } from '../../../coturn'
+// api/ice/route.ts
 
-const turnHost = process.env.TURN_HOST || '127.0.0.1'
+import { NextResponse } from 'next/server'
+import { getTurnIceServers } from '../../../turn'
+
 const stunServer = process.env.STUN_SERVER || 'stun:stun.l.google.com:19302'
 const peerjsHost = process.env.PEERJS_HOST || '0.peerjs.com'
 const peerjsPath = process.env.PEERJS_PATH || '/'
 
+const ICE_TTL = 86400 // 24 hours
+
 export async function POST(): Promise<NextResponse> {
-  if (!process.env.COTURN_ENABLED) {
+  try {
+    const turnServers = await getTurnIceServers(ICE_TTL)
+    return NextResponse.json({
+      host: peerjsHost,
+      path: peerjsPath,
+      iceServers: [{ urls: stunServer }, ...turnServers].slice(0, 4),
+    })
+  } catch (err) {
+    console.error('[ICE] failed to get TURN credentials:', err)
+    // Degrade gracefully to STUN-only rather than failing the whole peer init
     return NextResponse.json({
       host: peerjsHost,
       path: peerjsPath,
       iceServers: [{ urls: stunServer }],
     })
   }
-
-  // Generate ephemeral credentials
-  const username = crypto.randomBytes(8).toString('hex')
-  const password = crypto.randomBytes(8).toString('hex')
-  const ttl = 86400 // 24 hours
-
-  // Store credentials in Redis
-  await setTurnCredentials(username, password, ttl)
-
-  return NextResponse.json({
-    host: peerjsHost,
-    path: peerjsPath,
-    iceServers: [
-      { urls: stunServer },
-      {
-        urls: [`turn:${turnHost}:3478`, `turns:${turnHost}:5349`],
-        username,
-        credential: password,
-      },
-    ],
-  })
 }

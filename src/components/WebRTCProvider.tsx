@@ -35,7 +35,6 @@ async function getOrCreateGlobalPeer(): Promise<Peer> {
       method: 'POST',
     })
     const { host, path, iceServers } = await response.json()
-    console.log('[WebRTCProvider] ICE servers:', iceServers)
     console.log('[WebRTCProvider] host:', host)
     console.log('[WebRTCProvider] path:', path)
 

@@ -119,18 +119,27 @@ export default function WhatIsCheezyPizza() {
 
             <div className="wcp-body">
               <p>
-                <span className="wcp-keyword">CheezyPizza</span> is a free,
-                open-source peer-to-peer file transfer tool that runs entirely
-                in your browser — no installs, no accounts, no servers holding
-                your data.
+                <span className="wcp-keyword">
+                  CheezyPizza (fork of FilePizza)
+                </span>{' '}
+                is a free, open-source peer-to-peer file transfer tool that runs
+                entirely in your browser — no installs, no accounts, no servers
+                holding your data.
               </p>
               <p>
-                It is a fork of <span className="wcp-keyword">FilePizza</span>{' '}
-                <span className="wcp-mono">(file.pizza)</span>, the original
-                browser-based p2p file sharing app built by Alex Kern &amp;
-                Neeraj Baid. CheezyPizza extends it with{' '}
+                CheezyPizza is a fork and an alternative of{' '}
+                <a
+                  href="https://file.pizza"
+                  className="wcp-mono"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <span className="wcp-keyword">FilePizza</span>{' '}
+                </a>
+                , the original browser-based p2p file sharing app built by Alex
+                Kern &amp; Neeraj Baid. CheezyPizza extends it with{' '}
                 <strong style={{ color: 'var(--pizza-text)' }}>
-                  resume support , better large-file handling, with better error
+                  resume support, better large-file handling, with better error
                   handling
                 </strong>{' '}
                 and an ongoing commitment to keeping transfers fast and private.

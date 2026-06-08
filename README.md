@@ -17,7 +17,7 @@ Using [WebRTC](http://www.webrtc.org), CheezyPizza eliminates the initial upload
 * **Multi-file transfers with per-file progress.** Upload multiple files at once. The downloader receives them as a zip archive.
 * **Password protection.** Transfers can be protected with a password, verified before any file is transferred.
 
-```NOTE: TURN support has not yet been added, as I am an individual maintainer (and just a student) and would not be able to afford it without donations (will add it in future). (Peers trying to connect from behind symmetric NAT or strict firewalls may face connection issues.)```
+```NOTE: TURN support has been added. As I am an individual maintainer (and just a student) and would not be able to afford it without donations (will add it in future). There may be limitations.```
 
 ## Browser Support
 Every browser implements OPFS and persistant storage differently. Thus, some browser's may limit the total storage quota per tab or origin. Browser quota limitations affect the pause-resume feature because of the file-size restriction. You can read more on this here:
@@ -27,14 +27,14 @@ All the features of the website should work on Chrome and Chromium based brwoser
 
 | | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/chrome/chrome_48x48.png" width="32"/><br>Chrome | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/firefox/firefox_48x48.png" width="32"/><br>Firefox | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/edge/edge_48x48.png" width="32"/><br>Edge | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/safari/safari_48x48.png" width="32"/><br>Safari | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/opera/opera_48x48.png" width="32"/><br>Opera | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/vivaldi/vivaldi_48x48.png" width="32"/><br>Vivaldi | <img src="https://raw.githubusercontent.com/alrra/browser-logos/main/src/brave/brave_48x48.png" width="32"/><br>Brave |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Desktop** | | | | | | | |
+| ```Desktop``` | | | | | | | |
 | File transfer (WebRTC) | ✅ | ✅ | ✅ | * | ✅ | ✅ | ✅ |
 | OPFS storage (large files) | ✅ | ✅ | ✅ | * | ✅ | ✅ | ⚠️ limited  |
 | Resumable downloads | ✅ | ✅ | ✅ | * | ✅ | ✅ | ⚠️ limited  |
 | SHA-256 integrity check | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Password protection | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Multi-file zip download | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Mobile** | | | | | | | |
+| ```Mobile``` | | | | | | | |
 | File transfer (WebRTC) | ✅ | ✅ | ✅ | * | ✅ | ✅ | ✅ |
 | OPFS storage (large files) | ✅ | ⚠️ limited | ✅ | * | ✅ | ✅ | ⚠️ limited |
 | Resumable downloads | ✅ | ⚠️ IDB fallback | ✅ | * | ✅ | ✅ | ⚠️ limited  |
