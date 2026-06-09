@@ -8,6 +8,6 @@ describe('TermsAcceptance', () => {
   it('opens modal', () => {
     const { getByText } = render(<TermsAcceptance />)
     fireEvent.click(getByText('our terms'))
-    expect(getByText('FilePizza Terms')).toBeInTheDocument()
+    expect(getByText('CheezyPizza Terms')).toBeInTheDocument()
   })
 })

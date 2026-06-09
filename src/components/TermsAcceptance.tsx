@@ -38,7 +38,7 @@ export default function TermsAcceptance(): JSX.Element {
               id="modal-title"
               className="text-xl font-bold mb-4 text-stone-900 dark:text-stone-50"
             >
-              FilePizza Terms
+              CheezyPizza Terms
             </h2>
 
             <div className="space-y-4 text-stone-700 dark:text-stone-300">
@@ -50,19 +50,19 @@ export default function TermsAcceptance(): JSX.Element {
                     storage
                   </span>
                 </li>
-                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-stone-100 dark:bg-stone-800">
+                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-amber-50 dark:bg-stone-800 border border-amber-100 dark:border-stone-700">
                   <span className="text-base">✅</span>
                   <span className="text-sm">
                     Only upload files you have the right to share
                   </span>
                 </li>
-                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-stone-100 dark:bg-stone-800">
+                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-amber-50 dark:bg-stone-800 border border-amber-100 dark:border-stone-700">
                   <span className="text-base">🔒</span>
                   <span className="text-sm">
                     Share download links only with known recipients
                   </span>
                 </li>
-                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-stone-100 dark:bg-stone-800">
+                <li className="flex items-start gap-3 px-4 py-2 rounded-lg bg-amber-50 dark:bg-stone-800 border border-amber-100 dark:border-stone-700">
                   <span className="text-base">⚠️</span>
                   <span className="text-sm">
                     No illegal or harmful content allowed

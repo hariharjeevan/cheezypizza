@@ -20,6 +20,7 @@ import FeatureMenu from '../components/FeatureMenu'
 import StatsBar from '../components/StatsBar'
 import WhatIsCheezyPizza from '../components/WhatIsCheezyPizza'
 import FAQ from '../components/FAQ'
+import PressFeature from '../components/PressFeature'
 
 function PageWrapper({ children }: { children: React.ReactNode }): JSX.Element {
   return (
@@ -56,6 +57,7 @@ function InitialState({
           <FeatureMenu />
         </div>
       </div>
+      <PressFeature />
       <FAQ />
     </PageWrapper>
   )
