@@ -305,7 +305,7 @@ export default function PressFeature() {
                 </h3>
 
                 <p className="press-description">
-                  CheezyPizza was featured by It&apos;FOSS as an open-source
+                  CheezyPizza was featured by It&apos;s FOSS as an open-source
                   WebRTC-powered peer-to-peer file transfer application that
                   allows users to send large files directly between browsers
                   without cloud storage, uploads, or intermediaries.

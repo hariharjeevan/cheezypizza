@@ -60,7 +60,7 @@ $ pnpm start
 
 ```
 $ pnpm docker:build
-$ pnpm docker:up
+$ pnpm docker:up    # Go to http://localhost:3000/
 $ pnpm docker:down
 ```
 

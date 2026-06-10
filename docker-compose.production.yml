@@ -4,9 +4,10 @@ services:
     ports:
       - 127.0.0.1:6379:6379
     networks:
-      - filepizza
+      - cheezypizza
     volumes:
       - redis_data:/data
+
   coturn:
     image: coturn/coturn
     ports:
@@ -15,30 +16,45 @@ services:
       - 5349:5349
       - 5349:5349/udp
       - 60000-60128:60000-60128/udp
+
     environment:
       - DETECT_EXTERNAL_IP=yes
       - DETECT_RELAY_IP=yes
-    command: -n --log-file=stdout --redis-userdb="ip=redis connect_timeout=30" --min-port=60000 --max-port=60128
+
+    command: >
+      -n
+      --log-file=stdout
+      --redis-userdb="ip=redis connect_timeout=30"
+      --min-port=60000
+      --max-port=60128
+
     networks:
-      - filepizza
-  filepizza:
+      - cheezypizza
+
+  cheezypizza:
     build: .
-    image: kern/filepizza:latest
+
+    image: hariharjeevan/cheezypizza:latest
+
     ports:
-      - 0.0.0.0:80:80
+      - "0.0.0.0:3000:3000"
+
     environment:
-      - PORT=80
+      - PORT=3000
       - REDIS_URL=redis://redis:6379
       - COTURN_ENABLED=true
+
     networks:
-      - filepizza
+      - cheezypizza
+
     depends_on:
       - redis
+
     env_file:
       - .env
 
 networks:
-  filepizza:
+  cheezypizza:
     driver: bridge
 
 volumes:

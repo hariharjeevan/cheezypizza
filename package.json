@@ -29,6 +29,10 @@
     "test:e2e": "pnpm build && playwright test",
     "ci": "pnpm lint:check && pnpm format:check && pnpm type:check && pnpm test && pnpm build && pnpm test:e2e && pnpm docker:build"
   },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:hariharjeevan/cheezypizza.git"
+  },
   "dependencies": {
     "@noble/hashes": "^2.2.0",
     "@tailwindcss/postcss": "^4.1.11",

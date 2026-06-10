@@ -1,42 +1,67 @@
 services:
   redis:
     image: redis:latest
+    container_name: cheezypizza-redis
+
     ports:
-      - 6379:6379
+      - "6379:6379"
+
     networks:
-      - filepizza
+      - cheezypizza
+
     volumes:
       - redis_data:/data
+
   coturn:
     image: coturn/coturn
+    container_name: cheezypizza-coturn
+
     ports:
-      - 3478:3478
-      - 3478:3478/udp
-      - 5349:5349
-      - 5349:5349/udp
-      # Relay Ports
-      # - 49152-65535:49152-65535/udp
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+
+      # Uncomment for TURN relay traffic
+      # - "49152-65535:49152-65535/udp"
+
     environment:
       - DETECT_EXTERNAL_IP=yes
       - DETECT_RELAY_IP=yes
-    command: -n --log-file=stdout --redis-userdb="ip=redis connect_timeout=30"
+
+    command: >
+      -n
+      --log-file=stdout
+      --redis-userdb="ip=redis connect_timeout=30"
+
     networks:
-      - filepizza
-  filepizza:
+      - cheezypizza
+
+    depends_on:
+      - redis
+
+  cheezypizza:
     build: .
-    image: kern/filepizza:latest
+
+    image: hariharjeevan/cheezypizza:latest
+
+    container_name: cheezypizza
+
     ports:
-      - 8080:8080
+      - "3000:3000"
+
     environment:
-      - PORT=8080
+      - PORT=3000
       - REDIS_URL=redis://redis:6379
+
     networks:
-      - filepizza
+      - cheezypizza
+
     depends_on:
       - redis
 
 networks:
-  filepizza:
+  cheezypizza:
     driver: bridge
 
 volumes:
