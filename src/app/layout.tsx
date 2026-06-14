@@ -7,7 +7,7 @@ import { ThemeProvider } from '../components/ThemeProvider'
 import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-import ScrollToTop from '../components/ScrollToTop'
+//import ScrollToTop from '../components/ScrollToTop'
 import '../styles.css'
 import 'highlight.js/styles/atom-one-dark.css'
 
@@ -105,7 +105,7 @@ export default function RootLayout({
             <FilePizzaQueryClientProvider>
               <Navbar />
               <main>{children}</main>
-              <ScrollToTop />
+              {/* <ScrollToTop /> */}
               <Footer />
             </FilePizzaQueryClientProvider>
           </ThemeProvider>
