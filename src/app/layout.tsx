@@ -1,12 +1,14 @@
 import React from 'react'
-import Script from 'next/script'
-import Footer from '../components/Footer'
-import '../styles.css'
-import { ThemeProvider } from '../components/ThemeProvider'
-import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
 import { Viewport } from 'next'
 import { ViewTransitions } from 'next-view-transitions'
+//import Script from 'next/script'
+import { Analytics } from '@vercel/analytics/next'
+import { ThemeProvider } from '../components/ThemeProvider'
+import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
 import Navbar from '../components/Navbar'
+import Footer from '../components/Footer'
+import ScrollToTop from '../components/ScrollToTop'
+import '../styles.css'
 import 'highlight.js/styles/atom-one-dark.css'
 
 export const metadata = {
@@ -25,17 +27,19 @@ export const metadata = {
     'CheezyPizza',
     'filepizza',
   ],
-  metadataBase: new URL('https://cheezypizza.in'),
-
+  metadataBase: new URL('https://www.cheezypizza.in'),
+  alternates: {
+    canonical: 'https://www.cheezypizza.in',
+  },
   openGraph: {
     title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
     description:
       'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
-    url: 'https://cheezypizza.in',
+    url: 'https://www.cheezypizza.in',
     siteName: 'CheezyPizza',
     images: [
       {
-        url: 'https://cheezypizza.in/images/OG.png',
+        url: 'https://www.cheezypizza.in/images/OG.png',
         width: 1200,
         height: 630,
         alt: 'CheezyPizza Peer-to-Peer File Sharing',
@@ -49,7 +53,7 @@ export const metadata = {
     title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
     description:
       'Send files directly between browsers using WebRTC. No uploads, no cloud storage, and no middleman. Fast, secure, peer-to-peer file sharing. Forked from file.pizza.',
-    images: ['https://cheezypizza.in/images/OG.png'],
+    images: ['https://www.cheezypizza.in/images/OG.png'],
   },
 }
 
@@ -81,7 +85,7 @@ export default function RootLayout({
                 '@context': 'https://schema.org',
                 '@type': 'WebApplication',
                 name: 'CheezyPizza',
-                url: 'https://cheezypizza.in',
+                url: 'https://www.cheezypizza.in',
                 description:
                   'Peer-to-peer file transfers in your browser using WebRTC. Forked from FilePizza (file.pizza).',
                 applicationCategory: 'UtilitiesApplication',
@@ -92,14 +96,16 @@ export default function RootLayout({
         </head>
         <body>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            <Script
+            {/* <Script
               src="https://static.cloudflareinsights.com/beacon.min.js"
               data-cf-beacon='{"token": "345a2254fa94545bf88d65926273523", "spa": true}'
               strategy="afterInteractive"
-            />
+            /> */}
+            <Analytics />
             <FilePizzaQueryClientProvider>
               <Navbar />
               <main>{children}</main>
+              <ScrollToTop />
               <Footer />
             </FilePizzaQueryClientProvider>
           </ThemeProvider>

@@ -1,0 +1,7 @@
+ws-server/
+tests/
+docs/
+Dockerfile
+docker-compose.yml
+docker-compose.production.yml
+scripts/
