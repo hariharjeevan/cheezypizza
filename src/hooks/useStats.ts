@@ -1,5 +1,4 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 
 export type Stats = {
@@ -21,11 +20,8 @@ function getOrCreateVisitorId(): string {
 
 export function useStats(): Stats | null {
   const [stats, setStats] = useState<Stats | null>(null)
-
   useEffect(() => {
     const vid = getOrCreateVisitorId()
-
-    // Fire ping then fetch stats so the count reflects the current visit
     fetch('/api/stats/ping', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -39,13 +35,21 @@ export function useStats(): Stats | null {
           .catch(() => {})
       })
   }, [])
-
   return stats
 }
 
 export function formatBytes(bytes: number): string {
+  if (bytes >= 1e15) return `${(bytes / 1e15).toFixed(2)} PB`
   if (bytes >= 1e12) return `${(bytes / 1e12).toFixed(2)} TB`
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(2)} GB`
   if (bytes >= 1e6) return `${(bytes / 1e6).toFixed(1)} MB`
   return `${bytes} B`
+}
+
+export function formatBytesSubUnit(bytes: number): string | null {
+  if (bytes >= 1e15) return `${(bytes / 1e12).toFixed(0)} TB`
+  if (bytes >= 1e12) return `${(bytes / 1e9).toFixed(0)} GB`
+  if (bytes >= 1e9) return `${(bytes / 1e6).toFixed(0)} MB`
+  if (bytes >= 1e6) return `${(bytes / 1e3).toFixed(0)} KB`
+  return null
 }

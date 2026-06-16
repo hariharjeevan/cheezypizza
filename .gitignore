@@ -14,3 +14,8 @@ playwright-report/
 blob-report/
 playwright/.cache/
 certificates
+
+ws-server/target/
+ws-server/names.txt
+ws-server/server.txt
+ws-server/Dockerfile

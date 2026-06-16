@@ -18,35 +18,8 @@ const pressItems = [
 ]
 
 export default function PressFeature() {
-  const article = pressItems[0]
-
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'NewsArticle',
-    headline: article.headline,
-    url: article.url,
-    author: {
-      '@type': 'Person',
-      name: article.author,
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: article.publication,
-    },
-    datePublished: article.date,
-    description:
-      "CheezyPizza was featured by It's FOSS as an open-source WebRTC-based peer-to-peer file transfer tool for sending large files directly between browsers.",
-  }
-
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(jsonLd),
-        }}
-      />
-
       <style>{`
         .press-wrap {
           width: 100%;
@@ -288,7 +261,13 @@ export default function PressFeature() {
                 <header className="press-card-top">
                   <span className="press-logo-pill">
                     <span>{item.logo}</span>
-                    <span itemProp="publisher">{item.publication}</span>
+                    <span
+                      itemProp="publisher"
+                      itemScope
+                      itemType="https://schema.org/Organization"
+                    >
+                      <span itemProp="name">{item.publication}</span>
+                    </span>
                   </span>
 
                   <span className="press-meta">
@@ -313,7 +292,9 @@ export default function PressFeature() {
 
                 <blockquote className="press-pullquote">
                   <p>{item.quote}</p>
-                  <footer>— {item.author}</footer>
+                  <footer>
+                    — <span itemProp="author">{item.author}</span>
+                  </footer>
                 </blockquote>
 
                 <a

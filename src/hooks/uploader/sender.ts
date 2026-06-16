@@ -49,6 +49,7 @@ export interface SenderState {
   finalChunkSent: boolean
   paused: boolean
   onBufferedAmountLow: (() => void) | null
+  dcWaitInProgress?: boolean
 }
 
 export function createSenderState(): SenderState {
@@ -58,6 +59,7 @@ export function createSenderState(): SenderState {
     finalChunkSent: false,
     paused: false,
     onBufferedAmountLow: null,
+    dcWaitInProgress: false,
   }
 }
 
@@ -101,15 +103,91 @@ export function runSendWindow(
 ): void {
   if (state.paused || state.finalChunkSent) return
   const dc = getRawDC(conn)
-  if (!dc || dc.readyState !== 'open') {
-    console.warn('[Sender] sendWindow: DC not open')
+  if (!dc) {
+    console.warn('[Sender] sendWindow: No data channel found')
     state.paused = true
     return
   }
-  const file = files.find((f) => getFileName(f) === state.currentFileName)
-  if (!file) return
 
-  void sendLoop(conn, dc, file, files, state)
+  if (dc.readyState === 'open') {
+    const file = files.find((f) => getFileName(f) === state.currentFileName)
+    if (!file) return
+    void sendLoop(conn, dc, file, files, state)
+  } else if (dc.readyState === 'connecting' && !state.dcWaitInProgress) {
+    // DC is connecting, wait for it to open
+    console.log('[Sender] DataChannel connecting, waiting for open...')
+    state.dcWaitInProgress = true
+    void waitForDataChannelOpen(conn, files, state)
+  } else if (dc.readyState === 'connecting') {
+    // Already waiting, don't double-up
+    console.log('[Sender] Already waiting for DataChannel to open')
+  } else {
+    // DC is closed or closing
+    console.warn(`[Sender] sendWindow: DC in ${dc.readyState} state`)
+    state.paused = true
+  }
+}
+
+async function waitForDataChannelOpen(
+  conn: DataConnection,
+  files: UploadedFile[],
+  state: SenderState,
+): Promise<void> {
+  const dc = getRawDC(conn)
+  if (!dc) {
+    state.dcWaitInProgress = false
+    return
+  }
+
+  // Already open
+  if (dc.readyState === 'open') {
+    state.dcWaitInProgress = false
+    runSendWindow(conn, files, state)
+    return
+  }
+
+  // Already closed/failed
+  if (dc.readyState !== 'connecting') {
+    console.warn('[Sender] DC failed to open, state:', dc.readyState)
+    state.paused = true
+    state.dcWaitInProgress = false
+    return
+  }
+
+  // Wait for open event with timeout
+  return new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      dc.removeEventListener('open', onOpen)
+      dc.removeEventListener('error', onError)
+      console.warn('[Sender] DataChannel open timeout (15s)')
+      state.paused = true
+      state.dcWaitInProgress = false
+      resolve()
+    }, 15_000)
+
+    const onOpen = () => {
+      clearTimeout(timeout)
+      dc.removeEventListener('open', onOpen)
+      dc.removeEventListener('error', onError)
+      console.log('[Sender] DataChannel opened, resuming send')
+      state.dcWaitInProgress = false
+      runSendWindow(conn, files, state)
+      resolve()
+    }
+
+    const onError = () => {
+      clearTimeout(timeout)
+      dc.removeEventListener('open', onOpen)
+      dc.removeEventListener('error', onError)
+      console.warn('[Sender] DataChannel error while waiting for open')
+      state.paused = true
+      state.dcWaitInProgress = false
+      resolve()
+    }
+
+    dc.addEventListener('open', onOpen, { once: true })
+    dc.addEventListener('error', onError, { once: true })
+  })
 }
 
 async function sendLoop(

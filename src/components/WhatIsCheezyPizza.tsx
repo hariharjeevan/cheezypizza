@@ -77,7 +77,7 @@ export default function WhatIsCheezyPizza() {
           flex: 1;
         }
         .wcp-body p {
-          margin-bottom: 0.75rem;
+          margin-bottom: 0.42rem;
         }
         .wcp-body p:last-child {
           margin-bottom: 0;
@@ -146,10 +146,15 @@ export default function WhatIsCheezyPizza() {
               </p>
               <p>
                 Under the hood, WebRTC creates a direct connection between
-                sender and receiver. Files stream from one browser to the other
-                — your data never touches a server. Think of it as{' '}
+                sender and receiver. Files stream from one browser to the other.
+                Think of it as{' '}
                 <span className="wcp-keyword">AirDrop for the web</span>, but it
                 works across any device, any OS, any browser.
+              </p>
+              <p>
+                And when you&apos;re on the same network, CheezyPizza can
+                discover devices on the same local network for effortless
+                sharing, just pick a device and send.
               </p>
               <p>
                 If you have used FilePizza before, CheezyPizza will feel right

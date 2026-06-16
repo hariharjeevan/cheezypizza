@@ -465,9 +465,28 @@ export function useUploaderConnections(
     }
 
     peer.on('connection', listener)
+
+    // Periodic cleanup: remove closed connections after 5 seconds
+    const cleanupInterval = setInterval(() => {
+      setConnections((conns) => {
+        const filtered = conns.filter(
+          (c) =>
+            c.status !== UploaderConnectionStatus.Closed &&
+            c.status !== UploaderConnectionStatus.InvalidPassword,
+        )
+        if (filtered.length < conns.length) {
+          console.log(
+            `[UploaderConnections] cleaned up ${conns.length - filtered.length} closed connections`,
+          )
+        }
+        return filtered
+      })
+    }, 5000)
+
     return () => {
       cancelled = true
       peer.off('connection', listener)
+      clearInterval(cleanupInterval)
       cleanupHandlers.forEach((fn) => fn())
     }
   }, [peer, files, password])

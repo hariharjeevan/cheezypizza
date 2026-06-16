@@ -1,7 +1,9 @@
 'use client'
 
 import React, { JSX, useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import hljs from 'highlight.js'
+import 'highlight.js/styles/atom-one-light.css'
 
 const PASTE_FILENAME = '___pasted___.txt'
 
@@ -11,6 +13,14 @@ interface Detection {
   kind: ContentKind
   language?: string
   languageName?: string
+}
+
+interface LinkPreview {
+  title?: string
+  description?: string
+  image?: string
+  logo?: string
+  publisher?: string
 }
 
 function detectContent(text: string): Detection {
@@ -63,28 +73,189 @@ function detectContent(text: string): Detection {
   return { kind: 'plain' }
 }
 
+function useLinkPreview(url: string | null): {
+  preview: LinkPreview | null
+  loading: boolean
+} {
+  const [preview, setPreview] = useState<LinkPreview | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!url) {
+      setPreview(null)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setPreview(null)
+    fetch(`https://api.microlink.io?url=${encodeURIComponent(url)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.status === 'success') {
+          setPreview({
+            title: data.data?.title ?? undefined,
+            description: data.data?.description ?? undefined,
+            image: data.data?.image?.url ?? undefined,
+            logo: data.data?.logo?.url ?? undefined,
+            publisher: data.data?.publisher ?? undefined,
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [url])
+
+  return { preview, loading }
+}
+
 function UrlContent({ text }: { text: string }): JSX.Element {
-  let parsed: URL | null = null
-  try {
-    parsed = new URL(text.trim())
-  } catch {
-    /* fine */
-  }
+  const url = text.trim()
+  const { preview, loading } = useLinkPreview(url)
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-8">
-      <div className="text-5xl">🔗</div>
-      <p className="text-xs font-semibold uppercase tracking-widest text-stone-400 dark:text-stone-500">
-        {parsed?.hostname ?? 'URL'}
-      </p>
+    <div
+      className="overflow-auto flex-1 flex flex-col gap-4 p-4"
+      style={{
+        border: '1px solid var(--pizza-border)',
+        borderRadius: '2px',
+        background: 'var(--pizza-bg)',
+      }}
+    >
+      {/* Clickable URL always shown at top */}
       <a
-        href={text.trim()}
+        href={url}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-base font-medium text-orange-500 hover:text-orange-600 underline underline-offset-4 break-all text-center max-w-sm"
+        className="font-mono text-sm break-all"
+        style={{
+          color: 'var(--pizza-accent)',
+          textDecoration: 'underline',
+          textUnderlineOffset: '3px',
+          flexShrink: 0,
+        }}
       >
-        {text.trim()}
+        {url}
       </a>
+
+      {/* Loading state */}
+      {loading && (
+        <div
+          style={{
+            fontSize: '0.75rem',
+            fontFamily: 'DM Mono, monospace',
+            color: 'var(--pizza-text-muted)',
+          }}
+        >
+          Loading preview…
+        </div>
+      )}
+
+      {/* Small inset preview card */}
+      {!loading && preview && (
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            textDecoration: 'none',
+            color: 'inherit',
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'flex-start',
+            border: '1px solid var(--pizza-border)',
+            borderRadius: '2px',
+            background: 'var(--pizza-bg-subtle)',
+            padding: '0.65rem',
+            maxWidth: '400px',
+            overflow: 'hidden',
+          }}
+        >
+          {preview.image && (
+            <Image
+              src={preview.image}
+              alt=""
+              width={72}
+              height={72}
+              style={{
+                objectFit: 'cover',
+                borderRadius: '2px',
+                flexShrink: 0,
+              }}
+              unoptimized
+            />
+          )}
+          <div className="flex flex-col gap-1" style={{ minWidth: 0 }}>
+            <div className="flex items-center gap-1.5">
+              {preview.logo && (
+                <Image
+                  src={preview.logo}
+                  alt=""
+                  width={14}
+                  height={14}
+                  style={{
+                    objectFit: 'contain',
+                    flexShrink: 0,
+                  }}
+                  unoptimized
+                />
+              )}
+              <span
+                className="font-mono"
+                style={{
+                  fontSize: '0.65rem',
+                  color: 'var(--pizza-text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.1em',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {preview.publisher ?? new URL(url).hostname}
+              </span>
+            </div>
+            {preview.title && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--pizza-text)',
+                  lineHeight: 1.3,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {preview.title}
+              </p>
+            )}
+            {preview.description && (
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: '0.75rem',
+                  color: 'var(--pizza-text-muted)',
+                  lineHeight: 1.4,
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                }}
+              >
+                {preview.description}
+              </p>
+            )}
+          </div>
+        </a>
+      )}
     </div>
   )
 }
@@ -106,11 +277,15 @@ function CodeContent({
 
   return (
     <div
-      className="overflow-auto flex-1 rounded-lg border border-amber-200 dark:border-stone-700"
-      style={{ background: 'var(--hljs-bg)' }}
+      className="overflow-auto flex-1"
+      style={{
+        border: '1px solid var(--pizza-border)',
+        borderRadius: '2px',
+        background: 'var(--hljs-bg)',
+      }}
     >
       <pre
-        className="m-0 p-4 text-sm font-mono leading-relaxed min-h-full"
+        className="m-0 p-4 text-xs font-mono leading-relaxed min-h-full"
         style={{ background: 'var(--hljs-bg)' }}
       >
         <code dangerouslySetInnerHTML={{ __html: highlighted }} />
@@ -121,8 +296,22 @@ function CodeContent({
 
 function PlainContent({ text }: { text: string }): JSX.Element {
   return (
-    <div className="overflow-auto flex-1 rounded-lg border border-amber-200 dark:border-stone-700 bg-white dark:bg-stone-900 p-4">
-      <p className="text-base text-stone-800 dark:text-stone-200 whitespace-pre-wrap break-words font-mono leading-relaxed">
+    <div
+      className="overflow-auto flex-1 p-4"
+      style={{
+        border: '1px solid var(--pizza-border)',
+        borderRadius: '2px',
+        background: 'var(--pizza-bg)',
+      }}
+    >
+      <p
+        className="whitespace-pre-wrap break-words leading-relaxed"
+        style={{
+          color: 'var(--pizza-text)',
+          fontFamily: 'DM Mono, monospace',
+          fontSize: '0.8rem',
+        }}
+      >
         {text}
       </p>
     </div>
@@ -164,12 +353,10 @@ export default function PastePreviewModal({
     })
   }
 
-  // Close on backdrop click
   const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose()
   }
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -180,55 +367,51 @@ export default function PastePreviewModal({
 
   const kindLabel =
     detection.kind === 'url'
-      ? '🔗 Link'
+      ? 'URL'
       : detection.kind === 'code'
-        ? `💻 ${detection.languageName}`
-        : '📋 Text snippet'
+        ? (detection.languageName ?? 'CODE')
+        : 'TEXT'
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.5)' }}
       onClick={handleBackdrop}
     >
       <div
-        className="
-        relative flex flex-col
-        w-full max-w-2xl h-[70vh]
-        bg-amber-50 dark:bg-stone-800
-        border border-amber-300 dark:border-stone-700
-        rounded-2xl shadow-2xl
-        p-6 gap-4
-      "
+        className="relative flex flex-col w-full max-w-2xl p-6 gap-4"
+        style={{
+          height: '70vh',
+          background: 'var(--pizza-bg-subtle)',
+          border: '2px solid var(--pizza-border)',
+          borderRadius: '4px',
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-stone-700 dark:text-amber-100">
-              {kindLabel}
-            </span>
-            {detection.kind === 'code' && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-100 dark:bg-stone-700 text-amber-700 dark:text-amber-400 text-xs font-mono font-bold">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 dark:bg-amber-400 inline-block" />
-                {detection.languageName}
-              </span>
-            )}
-          </div>
+          <span
+            className="font-mono text-xs tracking-widest uppercase px-2 py-0.5"
+            style={{
+              color: 'var(--pizza-accent)',
+              border: '1px solid var(--pizza-accent)',
+              borderRadius: '2px',
+            }}
+          >
+            {kindLabel}
+          </span>
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopy}
               disabled={!text}
-              className="
-                px-4 py-1.5 text-sm font-semibold rounded-lg
-                text-white bg-orange-500 hover:bg-orange-600
-                disabled:opacity-40 disabled:cursor-not-allowed
-                active:scale-[0.98] transition-all duration-150
-              "
+              className="btn-primary"
+              style={{ height: '2rem', padding: '0 1rem', fontSize: '0.75rem' }}
             >
-              {copied ? '✓ Copied!' : 'Copy'}
+              {copied ? '✓ Copied' : 'Copy'}
             </button>
             <button
               onClick={onClose}
-              className="text-stone-400 hover:text-stone-600 dark:hover:text-stone-200 text-xl leading-none transition-colors px-1"
+              className="btn-ghost"
+              style={{ height: '2rem', padding: '0 0.5rem' }}
             >
               ✕
             </button>
@@ -237,11 +420,17 @@ export default function PastePreviewModal({
 
         {/* Content */}
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500">
+          <div
+            className="flex-1 flex items-center justify-center text-sm"
+            style={{ color: 'var(--pizza-text-muted)' }}
+          >
             Loading…
           </div>
         ) : text === null ? (
-          <div className="flex-1 flex items-center justify-center text-stone-400 dark:text-stone-500">
+          <div
+            className="flex-1 flex items-center justify-center text-sm"
+            style={{ color: 'var(--pizza-text-muted)' }}
+          >
             Could not read content.
           </div>
         ) : detection.kind === 'url' ? (

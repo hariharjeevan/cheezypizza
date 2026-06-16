@@ -24,7 +24,8 @@ export default function TermsAcceptance(): JSX.Element {
 
       {showModal && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50"
+          className="fixed inset-0 w-screen h-screen bg-black/50 flex items-center justify-center z-50"
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"

@@ -1,6 +1,6 @@
 // components/FeatureMenu.tsx
 import React from 'react'
-import { LuServerOff, LuFileStack } from 'react-icons/lu'
+import { LuServerOff, LuFileStack, LuWifi } from 'react-icons/lu'
 import { GrResume } from 'react-icons/gr'
 
 const items = [
@@ -9,6 +9,12 @@ const items = [
     sub: 'never lose your slice',
     name: 'Resume support',
     desc: 'Drop the connection, close the tab, lose the wifi. Your transfer picks up exactly where it left off — no do-overs.',
+  },
+  {
+    icon: <LuWifi />,
+    sub: 'served fresh next door',
+    name: 'Local Share',
+    desc: 'Discover devices on your local network and share files easily.',
   },
   {
     icon: <LuFileStack />,
@@ -80,7 +86,7 @@ export default function FeatureMenu() {
           display: flex;
           align-items: center;
           gap: 10px;
-          margin: 10px 0 16px;
+          margin: 8px 0 12px;
         }
         .fm-rule::before,
         .fm-rule::after {
@@ -96,7 +102,7 @@ export default function FeatureMenu() {
         .fm-item {
           display: flex;
           gap: 16px;
-          padding: 16px 0;
+          padding: 12px 0;
           border-bottom: 1px dashed var(--pizza-border);
           align-items: center;
         }
@@ -118,7 +124,7 @@ export default function FeatureMenu() {
         }
         .fm-name {
           font-family: 'Caveat', 'Bradley Hand', cursive;
-          font-size: 22px;
+          font-size: 19px;
           font-weight: 700;
           color: var(--pizza-text);
           line-height: 1;

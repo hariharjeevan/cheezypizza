@@ -3,13 +3,26 @@ import { Viewport } from 'next'
 import { ViewTransitions } from 'next-view-transitions'
 //import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
+import { Caveat, DM_Mono } from 'next/font/google'
 import { ThemeProvider } from '../components/ThemeProvider'
 import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
 import Navbar from '../components/Navbar'
 import Footer from '../components/Footer'
-//import ScrollToTop from '../components/ScrollToTop'
+import ScrollToTop from '../components/ScrollToTop'
 import '../styles.css'
 import 'highlight.js/styles/atom-one-dark.css'
+
+const caveat = Caveat({
+  subsets: ['latin'],
+  weight: ['700'],
+  variable: '--font-caveat',
+})
+
+const dmMono = DM_Mono({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-dm-mono',
+})
 
 export const metadata = {
   title: 'CheezyPizza — Peer-to-Peer File Transfers in Your Browser',
@@ -74,10 +87,6 @@ export default function RootLayout({
       <html lang="en" suppressHydrationWarning>
         <head>
           <link rel="manifest" href="/manifest.webmanifest" />
-          <link
-            href="https://fonts.googleapis.com/css2?family=Caveat:wght@700&family=DM+Mono&display=swap"
-            rel="stylesheet"
-          />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
@@ -94,7 +103,7 @@ export default function RootLayout({
             }}
           />
         </head>
-        <body>
+        <body className={`${caveat.variable} ${dmMono.variable}`}>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             {/* <Script
               src="https://static.cloudflareinsights.com/beacon.min.js"
@@ -105,7 +114,7 @@ export default function RootLayout({
             <FilePizzaQueryClientProvider>
               <Navbar />
               <main>{children}</main>
-              {/* <ScrollToTop /> */}
+              <ScrollToTop />
               <Footer />
             </FilePizzaQueryClientProvider>
           </ThemeProvider>

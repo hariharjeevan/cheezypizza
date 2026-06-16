@@ -1,19 +1,26 @@
 'use client'
 
 import React, { JSX } from 'react'
-import { useStats, formatBytes } from '../hooks/useStats'
+import { useStats, formatBytes, formatBytesSubUnit } from '../hooks/useStats'
 
 type StatItemProps = {
   value: string
   label: string
   variant: 'card' | 'footer'
+  subUnit?: string | null
 }
 
-function StatItem({ value, label, variant }: StatItemProps): JSX.Element {
+function StatItem({
+  value,
+  label,
+  variant,
+  subUnit,
+}: StatItemProps): JSX.Element {
   if (variant === 'footer') {
     return (
       <span className="sb-footer-item">
         <span className="sb-footer-value">{value}</span>
+        {subUnit && <span className="sb-footer-subunit">{subUnit}</span>}
         <span className="sb-footer-label">{label}</span>
       </span>
     )
@@ -21,6 +28,7 @@ function StatItem({ value, label, variant }: StatItemProps): JSX.Element {
   return (
     <div className="sb-item">
       <span className="sb-value">{value}</span>
+      {subUnit && <span className="sb-subunit">{subUnit}</span>}
       <span className="sb-label">{label}</span>
     </div>
   )
@@ -73,7 +81,11 @@ export default function StatsBar({
 
   const items = stats
     ? [
-        { value: formatBytes(stats.totalBytes), label: 'transferred' },
+        {
+          value: formatBytes(stats.totalBytes),
+          label: 'transferred',
+          subUnit: formatBytesSubUnit(stats.totalBytes),
+        },
         { value: stats.totalTransfers.toLocaleString(), label: 'transfers' },
         {
           value: stats.totalPageviews.toLocaleString(),
@@ -204,6 +216,22 @@ export default function StatsBar({
           color: var(--pizza-text-muted);
           white-space: nowrap;
         }
+        .sb-subunit {
+          font-family: 'DM Mono', 'Courier New', monospace;
+          font-size: 9px;
+          letter-spacing: 0.1em;
+          color: var(--pizza-text-muted);
+          opacity: 0.65;
+          line-height: 1;
+        }
+        .sb-footer-subunit {
+          font-family: 'DM Mono', 'Courier New', monospace;
+          font-size: 7px;
+          letter-spacing: 0.1em;
+          color: var(--pizza-text-muted);
+          opacity: 0.65;
+          line-height: 1;
+        }
       `}</style>
 
       {variant === 'footer' ? (
@@ -214,9 +242,10 @@ export default function StatsBar({
               items.map((item) => (
                 <StatItem
                   key={item.label}
-                  variant="footer"
+                  variant="card"
                   value={item.value}
                   label={item.label}
+                  subUnit={item.subUnit}
                 />
               ))
             ) : (
@@ -235,6 +264,7 @@ export default function StatsBar({
                   variant="card"
                   value={item.value}
                   label={item.label}
+                  subUnit={item.subUnit}
                 />
               ))
             ) : (
