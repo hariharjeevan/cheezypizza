@@ -40,7 +40,7 @@ function createPeer(
       debug: 0,
       host,
       path,
-      ...(port ? { port, secure: false } : {}),
+      ...(port ? { port, secure: port === 443 } : {}),
       config: { iceServers },
     })
     peer.on('open', () => resolve(peer))
