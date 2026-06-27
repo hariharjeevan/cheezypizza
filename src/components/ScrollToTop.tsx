@@ -7,11 +7,23 @@ import { TiArrowUpThick } from 'react-icons/ti'
 
 export default function ScrollToTopWidget() {
   const [visible, setVisible] = useState(false)
+  const [panelVisible, setPanelVisible] = useState(false)
 
   useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 300)
+    let hideTimer: ReturnType<typeof setTimeout>
+
+    const onScroll = () => {
+      setVisible(window.scrollY > 300)
+      setPanelVisible(true)
+      clearTimeout(hideTimer)
+      hideTimer = setTimeout(() => setPanelVisible(false), 3000)
+    }
+
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      clearTimeout(hideTimer)
+    }
   }, [])
 
   const scrollUp = () => window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -154,13 +166,32 @@ export default function ScrollToTopWidget() {
         .dark .stt-divider {
           border-top-color: #a57e66;
         }
+
+        @media (max-width: 640px) {
+          .stt-panel {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+          }
+          .stt-panel.stt-panel-visible {
+            opacity: 1;
+            pointer-events: auto;
+          }
+          .stt-btn {
+            border-radius: 2px;
+            transition: border-color 0.15s, color 0.15s, transform 0.1s, border-radius 0.3s ease;
+          }
+          .stt-panel.stt-panel-visible + .stt-btn {
+            border-radius: 0 0 2px 2px;
+          }
+        }
       `}</style>
 
       <div
         className={`stt-cluster${visible ? ' stt-visible' : ''}`}
         aria-hidden={!visible}
       >
-        <div className="stt-panel">
+        <div className={`stt-panel${panelVisible ? ' stt-panel-visible' : ''}`}>
           <div className="stt-panel-row">
             <LuSearch size={13} className="hu-icon" aria-hidden="true" />
             <p className="stt-panel-text">
@@ -173,7 +204,7 @@ export default function ScrollToTopWidget() {
           <hr className="stt-divider" />
 
           <a
-            href="#"
+            href="https://github.com/hariharjeevan/cheezypizza#webrtc-based-p2p-file-transfers-in-your-browser-"
             className="stt-donate"
             target="_blank"
             rel="noopener noreferrer"

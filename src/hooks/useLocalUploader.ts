@@ -87,6 +87,16 @@ export function useLocalUploader() {
         }
       }
 
+      dc.onclose = () => {
+        if (cancelRef.current) return
+        setState({ status: 'error', message: 'Receiver disconnected' })
+      }
+
+      dc.onerror = () => {
+        if (cancelRef.current) return
+        setState({ status: 'error', message: 'Connection lost' })
+      }
+
       dc.send(
         JSON.stringify({
           kind: 'manifest',
@@ -97,6 +107,69 @@ export function useLocalUploader() {
           })),
         }),
       )
+
+      // Wait for receiver to accept (sends {kind:'ready'}) or reject (sends {kind:'cancel'})
+      // before we start streaming.
+      setState({ status: 'waiting-for-accept' })
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error('Receiver did not respond to transfer request'))
+          }, 60_000)
+
+          const prevOnMessage = dc.onmessage
+          dc.onmessage = (event) => {
+            if (typeof event.data === 'string') {
+              try {
+                const msg = JSON.parse(event.data)
+                if (msg.kind === 'ready') {
+                  console.log('[UL] got ready, resolving')
+                  clearTimeout(timeout)
+                  dc.onmessage = prevOnMessage
+                  resolve()
+                  return
+                }
+                if (msg.kind === 'cancel') {
+                  clearTimeout(timeout)
+                  dc.onmessage = prevOnMessage
+                  cancelRef.current = true
+                  reject(new Error('Transfer declined by receiver'))
+                  return
+                }
+              } catch {
+                /* ignore */
+              }
+            }
+            prevOnMessage?.call(dc, event)
+          }
+
+          const prevOnClose = dc.onclose
+          const origOnClose = dc.onclose
+          dc.onclose = (ev) => {
+            clearTimeout(timeout)
+            dc.onclose = origOnClose
+            reject(new Error('Receiver disconnected'))
+            prevOnClose?.call(dc, ev)
+          }
+        })
+      } catch (err) {
+        if (cancelRef.current) {
+          setState({ status: 'idle' })
+        } else {
+          setState({
+            status: 'error',
+            message:
+              err instanceof Error ? err.message : 'Transfer not accepted',
+          })
+        }
+        return
+      }
+
+      // Restore normal close handler now that we're past the handshake
+      dc.onclose = () => {
+        if (cancelRef.current) return
+        setState({ status: 'error', message: 'Receiver disconnected' })
+      }
 
       const totalBytes = files.reduce((s, f) => s + f.size, 0)
       let globalBytesSent = 0
@@ -142,7 +215,7 @@ export function useLocalUploader() {
               type: file.type,
             }),
           )
-
+          console.log('[UL] sent file-header', file.name)
           let offset = 0
 
           while (offset < file.size) {

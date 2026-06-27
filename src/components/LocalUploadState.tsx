@@ -609,6 +609,82 @@ function ReceiveTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleReject = useCallback(() => {
+    downloader.rejectTransfer()
+    discoveryRef.current?.cleanup()
+    setSenderName(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (dl.status === 'awaiting-accept') {
+    const totalBytes = dl.files.reduce((s, f) => s + f.size, 0)
+    return (
+      <>
+        <Panel>
+          <PanelHeading>incoming files</PanelHeading>
+          <MetaRow label="from">
+            <strong>{senderName ?? '…'}</strong>
+          </MetaRow>
+          <MetaRow label="total size">{formatBytes(totalBytes)}</MetaRow>
+          {dl.files.map((f) => (
+            <div
+              key={f.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 0',
+                borderBottom: '1px solid var(--pizza-border)',
+                fontSize: 13,
+              }}
+            >
+              <LuFile
+                size={14}
+                aria-hidden="true"
+                style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+              />
+              <span
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  color: 'var(--pizza-text)',
+                }}
+              >
+                {f.name}
+              </span>
+              <span
+                style={{
+                  flexShrink: 0,
+                  fontFamily: 'DM Mono, monospace',
+                  fontSize: 11,
+                  color: 'var(--pizza-text-muted)',
+                }}
+              >
+                {formatBytes(f.size)}
+              </span>
+            </div>
+          ))}
+          <div style={{ height: 8 }} />
+        </Panel>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={handleReject} className="btn-secondary">
+            Decline
+          </button>
+          <button
+            onClick={downloader.acceptTransfer}
+            className="btn-primary"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            Accept
+            <LuArrowRight size={14} aria-hidden="true" />
+          </button>
+        </div>
+      </>
+    )
+  }
+
   if (dl.status === 'connecting') {
     return (
       <Panel>
@@ -726,7 +802,21 @@ function ReceiveTab() {
           ))}
           <div style={{ height: 4 }} />
         </Panel>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {dl.zipBlobUrl ? (
+            <a
+              href={dl.zipBlobUrl}
+              download={dl.zipFileName ?? 'cheezypizza_files.zip'}
+              className="btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              onClick={() =>
+                setTimeout(() => URL.revokeObjectURL(dl.zipBlobUrl!), 10_000)
+              }
+            >
+              Tap to save zip
+              <LuArrowRight size={14} aria-hidden="true" />
+            </a>
+          ) : null}
           <button onClick={handleReset} className="btn-primary">
             Receive more
           </button>

@@ -196,6 +196,13 @@ export default function LocalReceivePage(): JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const handleReject = useCallback(() => {
+    downloader.rejectTransfer()
+    discoveryRef.current?.cleanup()
+    setSenderName(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const discoveryRef = useRef<ReturnType<typeof useLocalDiscovery> | null>(null)
   const attachRef = useRef(downloader.attachDataChannel)
   attachRef.current = downloader.attachDataChannel
@@ -220,6 +227,102 @@ export default function LocalReceivePage(): JSX.Element {
     setSenderName(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  if (dl.status === 'awaiting-accept') {
+    const totalBytes = dl.files.reduce((s, f) => s + f.size, 0)
+    return (
+      <PageLayout>
+        <p
+          style={{
+            fontSize: 14,
+            textAlign: 'center',
+            color: 'var(--pizza-text)',
+            maxWidth: 520,
+          }}
+        >
+          <strong>{senderName ?? 'Someone'}</strong> wants to send you{' '}
+          {dl.files.length === 1 ? 'a file' : `${dl.files.length} files`}.
+        </p>
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 520,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12,
+          }}
+        >
+          <Panel>
+            <PanelHeading>incoming files</PanelHeading>
+            <MetaRow label="from">
+              <span style={{ fontWeight: 600 }}>{senderName ?? '…'}</span>
+            </MetaRow>
+            <MetaRow label="total size">{formatBytes(totalBytes)}</MetaRow>
+            {dl.files.map((f) => (
+              <div
+                key={f.name}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '7px 0',
+                  borderBottom: '1px solid var(--pizza-border)',
+                  fontSize: 13,
+                }}
+              >
+                <LuFile
+                  size={14}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: 'var(--pizza-text)',
+                  }}
+                >
+                  {f.name}
+                </span>
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontFamily: 'DM Mono, monospace',
+                    fontSize: 11,
+                    color: 'var(--pizza-text-muted)',
+                  }}
+                >
+                  {formatBytes(f.size)}
+                </span>
+              </div>
+            ))}
+            <div style={{ height: 8 }} />
+          </Panel>
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              justifyContent: 'center',
+            }}
+          >
+            <button onClick={handleReject} className="btn-secondary">
+              Decline
+            </button>
+            <button
+              onClick={downloader.acceptTransfer}
+              className="btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              Accept
+              <LuArrowRight size={14} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </PageLayout>
+    )
+  }
 
   if (dl.status === 'connecting') {
     return (
@@ -411,6 +514,20 @@ export default function LocalReceivePage(): JSX.Element {
               gap: 8,
             }}
           >
+            {dl.zipBlobUrl ? (
+              <a
+                href={dl.zipBlobUrl}
+                download
+                className="btn-primary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() =>
+                  setTimeout(() => URL.revokeObjectURL(dl.zipBlobUrl!), 10_000)
+                }
+              >
+                Tap to save zip
+                <LuArrowRight size={14} aria-hidden="true" />
+              </a>
+            ) : null}
             <button onClick={handleReset} className="btn-primary">
               Receive more
             </button>

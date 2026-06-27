@@ -2,8 +2,6 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react'
 
-// Types
-
 export type PeerInfo = { id: string; name: string }
 
 type S2CMsg =
@@ -36,6 +34,7 @@ function getWsUrl(): string {
 export function useLocalDiscovery(callbacks: {
   onSelected?: (fromId: string, fromName: string) => void
   onTransferComplete?: () => void
+  onPeerLeft?: (peerId: string) => void
 }) {
   const wsRef = useRef<WebSocket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -116,7 +115,14 @@ export function useLocalDiscovery(callbacks: {
             break
 
           case 'peer-list':
-            setPeers(msg.peers)
+            setPeers((prev) => {
+              for (const p of prev) {
+                if (!msg.peers.find((np) => np.id === p.id)) {
+                  cbRef.current.onPeerLeft?.(p.id)
+                }
+              }
+              return msg.peers
+            })
             break
 
           case 'selected':
@@ -145,9 +151,27 @@ export function useLocalDiscovery(callbacks: {
 
     connect()
 
+    // On mobile, switching between wifi/cell assigns a new IP.
+    // Force a full reconnect so the server sees the new remote IP and
+    // re-runs IP discovery, giving both sides a fresh identity.
+    function handleNetworkChange() {
+      if (destroyed) return
+      clearTimeout(reconnectTimer)
+      wsRef.current?.close()
+      wsRef.current = null
+      setMyId(null)
+      setMyName(null)
+      setPeers([])
+      setIsConnected(false)
+      reconnectTimer = setTimeout(connect, 300)
+    }
+
+    window.addEventListener('online', handleNetworkChange)
+
     return () => {
       destroyed = true
       clearTimeout(reconnectTimer)
+      window.removeEventListener('online', handleNetworkChange)
       wsRef.current?.close()
       wsRef.current = null
     }
@@ -274,7 +298,14 @@ export function useLocalDiscovery(callbacks: {
 
       const pc = new RTCPeerConnection(rtcConfig)
       pcRef.current = pc
-
+      pc.onconnectionstatechange = () => {
+        if (
+          pc.connectionState === 'failed' ||
+          pc.connectionState === 'closed'
+        ) {
+          cleanup()
+        }
+      }
       const dc = pc.createDataChannel('filetransfer', { ordered: true })
       onDataChannel(dc)
 

@@ -18,4 +18,3 @@ certificates
 ws-server/target/
 ws-server/names.txt
 ws-server/server.txt
-ws-server/Dockerfile

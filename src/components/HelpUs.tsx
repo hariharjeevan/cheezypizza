@@ -203,7 +203,7 @@ export default function HelpUs() {
                 Support us with a small donation — every bit helps
               </span>
               <a
-                href="#"
+                href="https://github.com/hariharjeevan/cheezypizza#webrtc-based-p2p-file-transfers-in-your-browser-"
                 className="hu-donate-btn"
                 target="_blank"
                 rel="noopener noreferrer"

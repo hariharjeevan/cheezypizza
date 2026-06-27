@@ -1,0 +1,17 @@
+{
+  "name": "cheezypizza-peerjs-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PeerJS server for CheezyPizza",
+  "author": "Harihar Jeevan",
+  "license": "BSD-3-Clause",
+  "homepage": "https://github.com/hariharjeevan/cheezypizza",
+  "packageManager": "pnpm@11.3.0",
+  "scripts": {
+    "start": "node peerjs.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "peerjs": "^1.5.5"
+  }
+}

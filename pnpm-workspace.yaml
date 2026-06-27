@@ -43,3 +43,5 @@ minimumReleaseAgeExclude:
   - next@15.5.18
   - ws@8.20.1
   - qs@6.15.2
+packages:
+  - 'peerjs-server'

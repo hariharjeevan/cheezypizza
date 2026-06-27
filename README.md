@@ -6,6 +6,21 @@
 
 Using [WebRTC](http://www.webrtc.org), CheezyPizza eliminates the initial upload step required by other web-based file sharing services. Because data is never stored in an intermediary server, the transfer is fast, private, and secure.
 
+<div align="center">
+<h3>Support Us ❤️</h3>
+Help maintain and grow CheezyPizza, donate through:
+
+<br>
+</div>
+<p align="center">
+  <a href="https://rzp.io/rzp/cheezypizza">
+    <img src="public/readme/pay_buttons-01.svg" alt="Support via Razorpay" width="180">
+  </a>
+  <a href="https://www.paypal.com/ncp/payment/VBY6AZ8ML6RF2">
+    <img src="public/readme/pay_buttons-02.svg" alt="Support via PayPal" width="180">
+  </a>
+</p>
+
 ## What's new in CheezyPizza 🍕
 
 * **Resumable downloads.** Transfers interrupted by network drops, browser crashes, or manual pauses can be resumed from where they left off. Progress is persisted to OPFS or IndexedDB so no data is re-downloaded unnecessarily.
@@ -58,10 +73,19 @@ $ pnpm start
 
 ### Running with Docker
 
+The frontend:
 ```
 $ pnpm docker:build
 $ pnpm docker:up    # Go to http://localhost:3000/
 $ pnpm docker:down
+```
+The websocket server for local share:
+```
+$ just build
+$ just up
+$ just health       # Should return {"ok":true,"peers":0}%
+$ just down
+$ just purge
 ```
 
 ## Stack

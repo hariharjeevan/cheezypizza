@@ -172,6 +172,15 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(jsdom@26.1.0)(lightningcss@1.32.0)(yaml@2.9.0)
 
+  peerjs-server:
+    dependencies:
+      express:
+        specifier: ^5.2.1
+        version: 5.2.1
+      peerjs:
+        specifier: ^1.5.5
+        version: 1.5.5
+
 packages:
 
   '@adobe/css-tools@4.5.0':

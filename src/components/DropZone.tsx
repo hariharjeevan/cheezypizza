@@ -627,8 +627,12 @@ export default function DropZone({
                   e.currentTarget.style.color = 'var(--pizza-accent-warm)'
                 }}
               >
-                <LuWifi aria-hidden="true" />
-                Receive from a local device (On the same network)
+                <LuWifi
+                  aria-hidden="true"
+                  className="w-4 h-4 sm:w-3 sm:h-3 md:w-4 md:h-4 shrink-0"
+                />
+                Receive from a local device <br />
+                (On the same network)
               </button>
             )}
           </div>

@@ -2,6 +2,8 @@
 // Returns all counters for homepage display.
 // Called once on homepage mount by useStats().
 
+export const revalidate = 1800
+
 import { NextResponse } from 'next/server'
 import { getRedisClient } from '../../../redisClient'
 

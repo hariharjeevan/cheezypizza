@@ -29,39 +29,57 @@ export const useWebRTCPeer = (): WebRTCPeerValue => {
 
 let globalPeer: Peer | null = null
 
-async function getOrCreateGlobalPeer(): Promise<Peer> {
-  if (!globalPeer) {
-    const response = await fetch('/api/ice', {
-      method: 'POST',
-    })
-    const { host, path, iceServers } = await response.json()
-    console.log('[WebRTCProvider] host:', host)
-    console.log('[WebRTCProvider] path:', path)
-
-    globalPeer = new Peer({
+function createPeer(
+  host: string,
+  path: string,
+  iceServers: object[],
+  port?: number,
+): Promise<Peer> {
+  return new Promise((resolve, reject) => {
+    const peer = new Peer({
       debug: 0,
       host,
       path,
-      config: {
-        iceServers,
-      },
+      ...(port ? { port, secure: false } : {}),
+      config: { iceServers },
     })
-  }
-
-  if (globalPeer.id) {
-    return globalPeer
-  }
-
-  await new Promise<void>((resolve) => {
-    const listener = (id: string) => {
-      console.log('[WebRTCProvider] Peer ID:', id)
-      globalPeer?.off('open', listener)
-      resolve()
-    }
-    globalPeer?.on('open', listener)
+    peer.on('open', () => resolve(peer))
+    peer.on('error', (err) => {
+      peer.destroy()
+      reject(err)
+    })
   })
+}
 
-  return globalPeer
+async function getOrCreateGlobalPeer(onFallback?: () => void): Promise<Peer> {
+  if (globalPeer?.id) return globalPeer
+
+  const response = await fetch('/api/ice', { method: 'POST' })
+  const { host, path, fallbackHost, fallbackPath, fallbackPort, iceServers } =
+    await response.json()
+
+  try {
+    globalPeer = await Promise.race([
+      createPeer(host, path, iceServers),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('primary timeout')), 8000),
+      ),
+    ])
+    console.log('[WebRTCProvider] connected to primary:', host)
+  } catch (err) {
+    if (!fallbackHost) throw err
+    console.warn('[WebRTCProvider] primary failed, trying fallback:', err)
+    onFallback?.()
+    globalPeer = await createPeer(
+      fallbackHost,
+      fallbackPath,
+      iceServers,
+      fallbackPort || undefined,
+    )
+    console.log('[WebRTCProvider] connected to fallback:', fallbackHost)
+  }
+
+  return globalPeer!
 }
 
 export default function WebRTCPeerProvider({
@@ -72,6 +90,7 @@ export default function WebRTCPeerProvider({
   const [peerValue, setPeerValue] = useState<Peer | null>(globalPeer)
   const [isStopped, setIsStopped] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const [loadingText, setLoadingText] = useState('Initializing WebRTC peer...')
 
   const stop = useCallback(() => {
     console.log('[WebRTCProvider] Stopping peer')
@@ -82,7 +101,11 @@ export default function WebRTCPeerProvider({
   }, [])
 
   useEffect(() => {
-    getOrCreateGlobalPeer().then(setPeerValue).catch(setError)
+    getOrCreateGlobalPeer(() => {
+      setLoadingText('Starting backup server, please wait...')
+    })
+      .then(setPeerValue)
+      .catch(setError)
   }, [])
 
   const value = useMemo(() => ({ peer: peerValue!, stop }), [peerValue, stop])
@@ -96,7 +119,7 @@ export default function WebRTCPeerProvider({
   }
 
   if (!peerValue) {
-    return <Loading text="Initializing WebRTC peer..." />
+    return <Loading text={loadingText} />
   }
 
   return (

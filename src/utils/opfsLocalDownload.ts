@@ -1,23 +1,7 @@
-/**
- * utils/opfsLocalDownload.ts
- *
- *   1. openOPFSSink()     — create a temp file in OPFS, open a writable
- *   2. sink.write(chunk)  — stream chunks directly to OPFS (no RAM accumulation)
- *   3. sink.close()       — flush + close the OPFS writable
- *   4. finalize()         — pipe OPFS file -> SW -> browser download, then delete temp file
- *
- * The SW (sw.js) must be registered and active before finalize() is called.
- * ensureSW() handles registration and waits for activation; call it early
- */
-
-// SW registration
+// utils/opfsLocalDownload.ts
 
 let swRegistrationPromise: Promise<ServiceWorkerRegistration> | null = null
 
-/**
- * Registers /sw.js and waits until it is active.
- * Safe to call multiple times - resolves immediately on subsequent calls.
- */
 export function ensureSW(): Promise<ServiceWorkerRegistration> {
   if (!swRegistrationPromise) {
     swRegistrationPromise = _registerSW()
@@ -34,14 +18,11 @@ async function _registerSW(): Promise<ServiceWorkerRegistration> {
     (await navigator.serviceWorker.getRegistration('/')) ??
     (await navigator.serviceWorker.register('/sw.js', { scope: '/' }))
 
-  // Already active — done
   if (reg.active) return reg
 
-  // Wait for installing/waiting worker to activate
   return new Promise((resolve, reject) => {
     const worker = reg.installing ?? reg.waiting
     if (!worker) {
-      // Should not happen, but guard anyway
       reject(new Error('No SW worker found after registration'))
       return
     }
@@ -57,21 +38,13 @@ async function _registerSW(): Promise<ServiceWorkerRegistration> {
   })
 }
 
-// OPFS sink
-
 export interface OPFSSink {
   write(chunk: Uint8Array): Promise<void>
   close(): Promise<void>
   abort(): Promise<void>
-  // Trigger the browser download. Deletes the OPFS temp file when done.
-  finalize(fileName: string, mimeType: string): Promise<void>
+  finalize(fileName: string, mimeType: string): Promise<{ blobUrl?: string }>
 }
 
-/**
- * Opens a temporary OPFS file for writing.
- * The temp file is stored as `__dl_<random>.tmp` in the OPFS root and is
- * deleted after finalize() or abort().
- */
 export async function openOPFSSink(): Promise<OPFSSink> {
   if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) {
     throw new Error('OPFS not supported')
@@ -115,8 +88,10 @@ export async function openOPFSSink(): Promise<OPFSSink> {
       await deleteTmp()
     },
 
-    async finalize(fileName: string, mimeType: string) {
-      // Ensure writable is flushed
+    async finalize(
+      fileName: string,
+      mimeType: string,
+    ): Promise<{ blobUrl?: string }> {
       if (!closed) {
         closed = true
         await writable.close()
@@ -124,47 +99,47 @@ export async function openOPFSSink(): Promise<OPFSSink> {
 
       const file = await fileHandle.getFile()
 
-      // Attempt SW streaming path first
-      // Pipe the OPFS file as a ReadableStream through the SW so the browser
-      // downloads it without loading it all into RAM.
-      let swOk = false
-      try {
-        const reg = await ensureSW()
-        const sw = reg.active
-        if (sw) {
-          await _downloadViaSSW(sw, file, fileName, mimeType)
-          swOk = true
+      const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+      // const isIOS = /iPhone|iPad|iPod/i.test(ua)
+      const isMobileBrowser =
+        /Mobi|Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(ua)
+
+      if (!isMobileBrowser) {
+        try {
+          const reg = await ensureSW()
+          const sw = reg.active
+          if (sw) {
+            await _downloadViaSSW(sw, file, fileName, mimeType)
+            await deleteTmp()
+            return {}
+          }
+        } catch (err) {
+          console.warn(
+            '[opfsDownload] SW pipe failed, falling back to blob URL',
+            err,
+          )
         }
-      } catch (err) {
-        console.warn(
-          '[opfsDownload] SW pipe failed, falling back to blob URL',
-          err,
-        )
       }
 
-      if (!swOk) {
-        // Blob URL fallback: loads file into RAM, but only at download time
-        // after transfer is complete, not during
-        const url = URL.createObjectURL(file)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        a.style.display = 'none'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      }
-
+      const url = URL.createObjectURL(file)
       await deleteTmp()
+
+      if (isMobileBrowser) {
+        return { blobUrl: url }
+      }
+
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.style.display = 'none'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      return {}
     },
   }
 }
-
-// SW pipe
-// Sends the file's ReadableStream to the active SW via MessageChannel,
-// mirroring what stream.html does, then navigates to the SW-intercepted URL
-// to trigger the browser download.
 
 async function _downloadViaSSW(
   sw: ServiceWorker,
@@ -210,7 +185,6 @@ async function _downloadViaSSW(
     )
   })
 
-  // Navigate to the SW-intercepted URL to trigger the download
   const a = document.createElement('a')
   a.href = url
   a.download = safeName

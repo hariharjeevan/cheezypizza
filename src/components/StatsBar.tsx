@@ -138,7 +138,8 @@ export default function StatsBar({
         }
         .sb-value {
           font-family: 'Caveat', 'Bradley Hand', cursive;
-          font-size: 22px;
+          font-size: 20px;
+          text-align: center;
           font-weight: 700;
           color: var(--pizza-accent);
           line-height: 1;
@@ -242,7 +243,7 @@ export default function StatsBar({
               items.map((item) => (
                 <StatItem
                   key={item.label}
-                  variant="card"
+                  variant="footer"
                   value={item.value}
                   label={item.label}
                   subUnit={item.subUnit}

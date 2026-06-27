@@ -264,22 +264,15 @@ fn push(tx: &mpsc::Sender<String>, msg: &S2CMsg) {
 
 fn broadcast_peer_list(state: &Arc<AppState>, peer_id: &str) {
     // Snapshot the "self" peer's addressing info first.
-    let (self_remote, self_locals) = match state.peers.get(peer_id) {
-        Some(p) => (p.remote_ip.clone(), p.local_ips.clone()),
+    let self_snapshot = match state.peers.get(peer_id) {
+        Some(p) => Peer {
+            id: peer_id.to_string(),
+            name: String::new(),
+            remote_ip: p.remote_ip.clone(),
+            local_ips: p.local_ips.clone(),
+            tx: p.tx.clone(),
+        },
         None => return,
-    };
-
-    // Build a temporary fake Peer for room comparisons without holding a lock.
-    let self_snapshot = Peer {
-        id: peer_id.to_string(),
-        name: String::new(),
-        remote_ip: self_remote,
-        local_ips: self_locals,
-        tx: state
-            .peers
-            .get(peer_id)
-            .map(|p| p.tx.clone())
-            .unwrap_or_else(|| mpsc::channel(1).0),
     };
 
     // Collect room members and the full peer list.
@@ -439,7 +432,7 @@ async fn handle_socket(socket: WebSocket, state: Arc<AppState>, remote_ip: Strin
     broadcast_peer_list(&state, &id);
 
     // Read loop + heartbeat
-    let mut hb = interval(Duration::from_secs(30));
+    let mut hb = interval(Duration::from_secs(5));
     hb.tick().await; // skip the immediate first tick
     let mut missed = 0u8;
 

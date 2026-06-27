@@ -1,0 +1,11 @@
+build:
+    docker compose build --no-cache
+up:
+    docker compose up -d
+down:
+    docker compose down
+health:
+    curl -fsS http://localhost:4000/health
+purge:
+    docker compose down
+    docker rmi -f hariharjeevan/cheezypizza-ws-server:latest

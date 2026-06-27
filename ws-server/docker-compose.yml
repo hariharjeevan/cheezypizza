@@ -1,0 +1,15 @@
+services:
+  ws-server:
+    container_name: cheezypizza-ws-server
+    image: hariharjeevan/cheezypizza-ws-server:latest
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      ALLOWED_ORIGINS: http://localhost:3000
+    restart: unless-stopped
+
+networks:
+  default:
+    name: cheezypizza-network
