@@ -30,7 +30,10 @@ function isMobile(): boolean {
   )
 }
 
-async function openStreamingSink(zipName: string): Promise<Sink> {
+async function openStreamingSink(
+  zipName: string,
+  preOpenedHandle?: FileSystemFileHandle,
+): Promise<Sink> {
   // 1. File System Access API
   if (
     typeof window !== 'undefined' &&
@@ -38,11 +41,13 @@ async function openStreamingSink(zipName: string): Promise<Sink> {
       .showSaveFilePicker === 'function'
   ) {
     try {
-      const handle = await (
-        window as typeof window & {
-          showSaveFilePicker: (opts: object) => Promise<FileSystemFileHandle>
-        }
-      ).showSaveFilePicker({ suggestedName: zipName })
+      const handle =
+        preOpenedHandle ??
+        (await (
+          window as typeof window & {
+            showSaveFilePicker: (opts: object) => Promise<FileSystemFileHandle>
+          }
+        ).showSaveFilePicker({ suggestedName: zipName }))
       const writable = await handle.createWritable({ keepExistingData: false })
       return {
         async write(chunk) {
@@ -147,22 +152,24 @@ function makeBlobSink(zipName: string): Sink {
 
 export async function openLocalZipDownload(
   zipName: string,
+  preOpenedHandle?: FileSystemFileHandle,
 ): Promise<LocalZipController> {
-  ensureSW().catch(() => {}) // warm up SW early; don't block on it
+  if (!isMobile()) {
+    ensureSW().catch(() => {}) // warm up SW early; don't block on it
+  }
 
   let sink: Sink
 
-  if (!isMobile()) {
-    // Desktop: stream zip directly to disk
+  if (!isMobile() || preOpenedHandle) {
+    // Desktop, or mobile with pre-opened FSA handle (gesture already consumed by caller)
     try {
-      sink = await openStreamingSink(zipName)
+      sink = await openStreamingSink(zipName, preOpenedHandle)
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         throw err // User cancelled — let caller handle
       }
-      // Streaming unavailable on this desktop browser — fall through to OPFS
       console.warn(
-        '[localZipDownload] Desktop streaming failed, falling back to OPFS',
+        '[localZipDownload] Streaming failed, falling back to OPFS',
         err,
       )
       sink = await openMobileSink(zipName)

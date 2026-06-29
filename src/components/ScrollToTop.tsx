@@ -13,10 +13,12 @@ export default function ScrollToTopWidget() {
     let hideTimer: ReturnType<typeof setTimeout>
 
     const onScroll = () => {
-      setVisible(window.scrollY > 300)
+      const nearBottom =
+        window.scrollY + window.innerHeight >= document.body.scrollHeight - 80
+      setVisible(window.scrollY > 300 && !nearBottom)
       setPanelVisible(true)
       clearTimeout(hideTimer)
-      hideTimer = setTimeout(() => setPanelVisible(false), 3000)
+      hideTimer = setTimeout(() => setPanelVisible(false), 800)
     }
 
     window.addEventListener('scroll', onScroll, { passive: true })

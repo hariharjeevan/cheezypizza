@@ -5,3 +5,4 @@ Dockerfile
 docker-compose.yml
 docker-compose.production.yml
 scripts/
+peerjs-server/

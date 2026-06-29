@@ -16,22 +16,34 @@ export async function GET(): Promise<NextResponse> {
         monthPageviews: 0,
         totalBytes: 0,
         totalTransfers: 0,
+        localBytes: 0,
+        localTransfers: 0,
       })
     }
 
     const monthKey = `stats:pageviews:${new Date().toISOString().slice(0, 7)}`
-    const [totalViews, monthViews, totalBytes, totalTransfers] =
-      await Promise.all([
-        redis.get('stats:pageviews:total'),
-        redis.get(monthKey),
-        redis.get('stats:bytes:total'),
-        redis.get('stats:transfers:total'),
-      ])
+    const [
+      totalViews,
+      monthViews,
+      totalBytes,
+      totalTransfers,
+      localBytes,
+      localTransfers,
+    ] = await Promise.all([
+      redis.get('stats:pageviews:total'),
+      redis.get(monthKey),
+      redis.get('stats:bytes:total'),
+      redis.get('stats:transfers:total'),
+      redis.get('stats:local:bytes:total'),
+      redis.get('stats:local:transfers:total'),
+    ])
     return NextResponse.json({
       totalPageviews: parseInt(totalViews ?? '0'),
       monthPageviews: parseInt(monthViews ?? '0'),
       totalBytes: parseInt(totalBytes ?? '0'),
       totalTransfers: parseInt(totalTransfers ?? '0'),
+      localBytes: parseInt(localBytes ?? '0'),
+      localTransfers: parseInt(localTransfers ?? '0'),
     })
   } catch {
     return NextResponse.json({ error: 'failed' }, { status: 500 })

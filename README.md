@@ -29,10 +29,11 @@ Help maintain and grow CheezyPizza, donate through:
 * **Better error handling.** Per-file errors are tracked independently. A failed or corrupt file does not block other files in a multi-file transfer. Integrity failures clean up partial data automatically.
 * **Application-level flow control.** With high/low watermarks on the WebRTC data channel prevents buffer bloat and keeps transfers smooth at high speeds across varying network conditions.
 * **Automatic reconnect on network change.** When a device switches networks (e.g. mobile data -> Wi-Fi) or a connection drops, CheezyPizza detects the reconnection and resumes the download automatically from the last saved offset.
-* **Multi-file transfers with per-file progress.** Upload multiple files at once. The downloader receives them as a zip archive.
+* **Multi-file transfers.** Upload multiple files at once. The downloader receives them as a zip archive.
 * **Password protection.** Transfers can be protected with a password, verified before any file is transferred.
+* **Local Share.** Discover and transfer files to devices on the same network directly — no link to share.
 
-```NOTE: TURN support has been added. As I am an individual maintainer (and just a student) and would not be able to afford it without donations (will add it in future). There may be limitations.```
+```NOTE: TURN support has been added. As I am an individual maintainer (and just a student) and would not be able to afford it without donations. There may be limitations.```
 
 ## Browser Support
 Every browser implements OPFS and persistant storage differently. Thus, some browser's may limit the total storage quota per tab or origin. Browser quota limitations affect the pause-resume feature because of the file-size restriction. You can read more on this here:
@@ -81,6 +82,7 @@ $ pnpm docker:down
 ```
 The websocket server for local share:
 ```
+$ cd ws-server
 $ just build
 $ just up
 $ just health       # Should return {"ok":true,"peers":0}%

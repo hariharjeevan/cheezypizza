@@ -6,6 +6,8 @@ export type Stats = {
   monthPageviews: number
   totalBytes: number
   totalTransfers: number
+  localBytes: number
+  localTransfers: number
 }
 
 function getOrCreateVisitorId(): string {
@@ -18,22 +20,43 @@ function getOrCreateVisitorId(): string {
   return vid
 }
 
-export function useStats(): Stats | null {
-  const [stats, setStats] = useState<Stats | null>(null)
-  useEffect(() => {
-    const vid = getOrCreateVisitorId()
-    fetch('/api/stats/ping', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ vid }),
+// Module-level singleton: one fetch per page load, shared across all callers.
+let _cache: Stats | null = null
+let _promise: Promise<Stats> | null = null
+let _fetchedAt: number = 0
+const CACHE_TTL = 30 * 60 * 1000
+
+function fetchStats(): Promise<Stats> {
+  if (_promise && Date.now() - _fetchedAt < CACHE_TTL) return _promise
+  _promise = null
+  const vid = getOrCreateVisitorId()
+  _promise = fetch('/api/stats/ping', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vid }),
+  })
+    .catch(() => {})
+    .then(() => fetch('/api/stats'))
+    .then((r) => r.json())
+    .then((data: Stats) => {
+      _cache = data
+      _fetchedAt = Date.now()
+      return data
     })
-      .catch(() => {})
-      .finally(() => {
-        fetch('/api/stats')
-          .then((r) => r.json())
-          .then((data: Stats) => setStats(data))
-          .catch(() => {})
-      })
+    .catch(() => {
+      _promise = null // allow retry on error
+      return null as unknown as Stats
+    })
+  return _promise
+}
+
+export function useStats(): Stats | null {
+  const [stats, setStats] = useState<Stats | null>(_cache)
+  useEffect(() => {
+    if (_cache && Date.now() - _fetchedAt < CACHE_TTL) return
+    fetchStats().then((data) => {
+      if (data) setStats(data)
+    })
   }, [])
   return stats
 }

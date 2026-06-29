@@ -258,46 +258,48 @@ export default function LocalReceivePage(): JSX.Element {
               <span style={{ fontWeight: 600 }}>{senderName ?? '…'}</span>
             </MetaRow>
             <MetaRow label="total size">{formatBytes(totalBytes)}</MetaRow>
-            {dl.files.map((f) => (
-              <div
-                key={f.name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '7px 0',
-                  borderBottom: '1px solid var(--pizza-border)',
-                  fontSize: 13,
-                }}
-              >
-                <LuFile
-                  size={14}
-                  aria-hidden="true"
-                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
-                />
-                <span
+            <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+              {dl.files.map((f) => (
+                <div
+                  key={f.name}
                   style={{
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    color: 'var(--pizza-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '7px 0',
+                    borderBottom: '1px solid var(--pizza-border)',
+                    fontSize: 13,
                   }}
                 >
-                  {f.name}
-                </span>
-                <span
-                  style={{
-                    flexShrink: 0,
-                    fontFamily: 'DM Mono, monospace',
-                    fontSize: 11,
-                    color: 'var(--pizza-text-muted)',
-                  }}
-                >
-                  {formatBytes(f.size)}
-                </span>
-              </div>
-            ))}
+                  <LuFile
+                    size={14}
+                    aria-hidden="true"
+                    style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                  />
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      color: 'var(--pizza-text)',
+                    }}
+                  >
+                    {f.name}
+                  </span>
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontFamily: 'DM Mono, monospace',
+                      fontSize: 11,
+                      color: 'var(--pizza-text-muted)',
+                    }}
+                  >
+                    {formatBytes(f.size)}
+                  </span>
+                </div>
+              ))}
+            </div>
             <div style={{ height: 8 }} />
           </Panel>
           <div
@@ -311,7 +313,33 @@ export default function LocalReceivePage(): JSX.Element {
               Decline
             </button>
             <button
-              onClick={downloader.acceptTransfer}
+              onClick={async () => {
+                // On multi-file transfers, call showSaveFilePicker synchronously
+                // within the user gesture so Android Chrome grants FSA access.
+                // Any await before this call would break the gesture token.
+                let handle: FileSystemFileHandle | undefined
+                if (
+                  dl.status === 'awaiting-accept' &&
+                  dl.files.length >= 2 &&
+                  typeof window !== 'undefined' &&
+                  typeof window.showSaveFilePicker === 'function'
+                ) {
+                  const zipName = `cheezypizza_files_${Date.now()}.zip`
+                  try {
+                    handle = await window.showSaveFilePicker({
+                      suggestedName: zipName,
+                    })
+                  } catch (err) {
+                    if (
+                      err instanceof DOMException &&
+                      err.name === 'AbortError'
+                    )
+                      return
+                    // FSA unavailable — proceed without handle, mobile fallback will apply
+                  }
+                }
+                downloader.acceptTransfer(handle)
+              }}
               className="btn-primary"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
             >
@@ -467,43 +495,45 @@ export default function LocalReceivePage(): JSX.Element {
               <span style={{ fontWeight: 600 }}>{senderName ?? '…'}</span>
             </MetaRow>
             <MetaRow label="files">{dl.fileNames.length}</MetaRow>
-            {dl.fileNames.map((name) => (
-              <div
-                key={name}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  padding: '7px 0',
-                  borderBottom: '1px solid var(--pizza-border)',
-                  fontSize: 13,
-                }}
-              >
-                <LuFile
-                  size={14}
-                  aria-hidden="true"
-                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
-                />
-                <span
+            <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+              {dl.fileNames.map((name) => (
+                <div
+                  key={name}
                   style={{
-                    flex: 1,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    fontSize: 14,
-                    color: 'var(--pizza-text)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 8,
+                    padding: '7px 0',
+                    borderBottom: '1px solid var(--pizza-border)',
+                    fontSize: 13,
                   }}
                 >
-                  {name}
-                </span>
-                <LuCheckCheck
-                  size={14}
-                  aria-hidden="true"
-                  style={{ flexShrink: 0, color: '#16a34a' }}
-                />
-              </div>
-            ))}
+                  <LuFile
+                    size={14}
+                    aria-hidden="true"
+                    style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                  />
+                  <span
+                    style={{
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      fontSize: 14,
+                      color: 'var(--pizza-text)',
+                    }}
+                  >
+                    {name}
+                  </span>
+                  <LuCheckCheck
+                    size={14}
+                    aria-hidden="true"
+                    style={{ flexShrink: 0, color: '#16a34a' }}
+                  />
+                </div>
+              ))}
+            </div>
             <div style={{ height: 12 }} />
           </Panel>
           <div
@@ -600,16 +630,30 @@ export default function LocalReceivePage(): JSX.Element {
 
   return (
     <PageLayout>
-      <p
-        style={{
-          fontSize: 14,
-          textAlign: 'center',
-          color: 'var(--pizza-text)',
-          maxWidth: 520,
-        }}
-      >
-        {senderName ? `${senderName} is connecting…` : 'Ready to receive.'}
-      </p>
+      <div style={{ textAlign: 'center', maxWidth: 520 }}>
+        <h1
+          style={{
+            fontSize: 22,
+            fontWeight: 700,
+            color: 'var(--pizza-text)',
+            marginBottom: 8,
+          }}
+        >
+          CheezyPizza - Local Share
+        </h1>
+        <p
+          style={{
+            fontSize: 14,
+            color: 'var(--pizza-text-muted)',
+            lineHeight: 1.6,
+            marginBottom: 0,
+          }}
+        >
+          {senderName
+            ? `${senderName} is connecting…`
+            : 'Receive files from nearby devices on the same Wi-Fi network — directly in your browser, no cloud involved.'}
+        </p>
+      </div>
 
       <div
         style={{

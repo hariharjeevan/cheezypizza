@@ -102,7 +102,10 @@ export default function UploadPage(): JSX.Element {
 
   if (step === 'local') {
     return (
-      <LocalUploadState uploadedFiles={uploadedFiles} onCancel={handleCancel} />
+      <LocalUploadState
+        uploadedFiles={uploadedFiles}
+        onCancelAction={handleCancel}
+      />
     )
   }
 
@@ -117,10 +120,13 @@ export default function UploadPage(): JSX.Element {
         <div className="flex flex-col items-center space-y-1 max-w-md">
           <TitleText>Peer-to-peer file transfers in your browser.</TitleText>
         </div>
-        <DropZone onDrop={handleDrop} onReceiveLocally={handleReceiveLocally} />
+        <DropZone
+          onDropAction={handleDrop}
+          onReceiveLocallyAction={handleReceiveLocally}
+        />
         <TermsAcceptance />
         <StatsBar />
-        <div className="flex flex-col lg:flex-row lg:items-start gap-5 w-full max-w-4xl">
+        <div className="flex flex-col lg:flex-row gap-5 w-full max-w-4xl">
           <div className="flex-1 min-w-0">
             <WhatIsCheezyPizza />
           </div>

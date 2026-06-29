@@ -368,35 +368,37 @@ function SendTab({
             {uploadedFiles.length}{' '}
             {uploadedFiles.length === 1 ? 'file' : 'files'} to send
           </PanelHeading>
-          {uploadedFiles.map((f) => (
-            <div
-              key={getFileName(f)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 0',
-                borderBottom: '1px solid var(--pizza-border)',
-              }}
-            >
-              <LuFile
-                size={14}
-                aria-hidden="true"
-                style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
-              />
-              <span
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {uploadedFiles.map((f) => (
+              <div
+                key={getFileName(f)}
                 style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontSize: 14,
-                  color: 'var(--pizza-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--pizza-border)',
                 }}
               >
-                {getFileName(f)}
-              </span>
-            </div>
-          ))}
+                <LuFile
+                  size={14}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                />
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 14,
+                    color: 'var(--pizza-text)',
+                  }}
+                >
+                  {getFileName(f)}
+                </span>
+              </div>
+            ))}
+          </div>
           <div style={{ height: 4 }} />
         </Panel>
 
@@ -626,46 +628,48 @@ function ReceiveTab() {
             <strong>{senderName ?? '…'}</strong>
           </MetaRow>
           <MetaRow label="total size">{formatBytes(totalBytes)}</MetaRow>
-          {dl.files.map((f) => (
-            <div
-              key={f.name}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 0',
-                borderBottom: '1px solid var(--pizza-border)',
-                fontSize: 13,
-              }}
-            >
-              <LuFile
-                size={14}
-                aria-hidden="true"
-                style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
-              />
-              <span
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {dl.files.map((f) => (
+              <div
+                key={f.name}
                 style={{
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  color: 'var(--pizza-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 0',
+                  borderBottom: '1px solid var(--pizza-border)',
+                  fontSize: 13,
                 }}
               >
-                {f.name}
-              </span>
-              <span
-                style={{
-                  flexShrink: 0,
-                  fontFamily: 'DM Mono, monospace',
-                  fontSize: 11,
-                  color: 'var(--pizza-text-muted)',
-                }}
-              >
-                {formatBytes(f.size)}
-              </span>
-            </div>
-          ))}
+                <LuFile
+                  size={14}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: 'var(--pizza-text)',
+                  }}
+                >
+                  {f.name}
+                </span>
+                <span
+                  style={{
+                    flexShrink: 0,
+                    fontFamily: 'DM Mono, monospace',
+                    fontSize: 11,
+                    color: 'var(--pizza-text-muted)',
+                  }}
+                >
+                  {formatBytes(f.size)}
+                </span>
+              </div>
+            ))}
+          </div>
           <div style={{ height: 8 }} />
         </Panel>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -673,7 +677,30 @@ function ReceiveTab() {
             Decline
           </button>
           <button
-            onClick={downloader.acceptTransfer}
+            onClick={async () => {
+              // On multi-file transfers, call showSaveFilePicker synchronously
+              // within the user gesture so Android Chrome grants FSA access.
+              // Any await before this call would break the gesture token.
+              let handle: FileSystemFileHandle | undefined
+              if (
+                dl.status === 'awaiting-accept' &&
+                dl.files.length >= 2 &&
+                typeof window !== 'undefined' &&
+                typeof window.showSaveFilePicker === 'function'
+              ) {
+                const zipName = `cheezypizza_files_${Date.now()}.zip`
+                try {
+                  handle = await window.showSaveFilePicker({
+                    suggestedName: zipName,
+                  })
+                } catch (err) {
+                  if (err instanceof DOMException && err.name === 'AbortError')
+                    return
+                  // FSA unavailable — proceed without handle, mobile fallback will apply
+                }
+              }
+              downloader.acceptTransfer(handle)
+            }}
             className="btn-primary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >
@@ -764,42 +791,44 @@ function ReceiveTab() {
             <strong>{senderName ?? '…'}</strong>
           </MetaRow>
           <MetaRow label="files">{dl.fileNames.length}</MetaRow>
-          {dl.fileNames.map((name) => (
-            <div
-              key={name}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 8,
-                padding: '10px 0',
-                borderBottom: '1px solid var(--pizza-border)',
-              }}
-            >
-              <LuFile
-                size={14}
-                aria-hidden="true"
-                style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
-              />
-              <span
+          <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+            {dl.fileNames.map((name) => (
+              <div
+                key={name}
                 style={{
-                  flex: 1,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  fontSize: 14,
-                  color: 'var(--pizza-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  padding: '10px 0',
+                  borderBottom: '1px solid var(--pizza-border)',
                 }}
               >
-                {name}
-              </span>
-              <LuCheckCheck
-                size={14}
-                aria-hidden="true"
-                style={{ flexShrink: 0, color: '#16a34a' }}
-              />
-            </div>
-          ))}
+                <LuFile
+                  size={14}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, color: 'var(--pizza-text-muted)' }}
+                />
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    fontSize: 14,
+                    color: 'var(--pizza-text)',
+                  }}
+                >
+                  {name}
+                </span>
+                <LuCheckCheck
+                  size={14}
+                  aria-hidden="true"
+                  style={{ flexShrink: 0, color: '#16a34a' }}
+                />
+              </div>
+            ))}
+          </div>
           <div style={{ height: 4 }} />
         </Panel>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -953,11 +982,11 @@ function ReceiveTab() {
 
 export default function LocalUploadState({
   uploadedFiles,
-  onCancel,
+  onCancelAction,
   initialTab = 'send',
 }: {
   uploadedFiles: UploadedFile[]
-  onCancel: () => void
+  onCancelAction: () => void
   initialTab?: LocalTab
 }): JSX.Element {
   const [activeTab, setActiveTab] = useState<LocalTab>(initialTab)
@@ -966,10 +995,10 @@ export default function LocalUploadState({
     <LocalPageShell
       activeTab={activeTab}
       onTabChange={setActiveTab}
-      onBack={onCancel}
+      onBack={onCancelAction}
     >
       {activeTab === 'send' ? (
-        <SendTab uploadedFiles={uploadedFiles} onDone={onCancel} />
+        <SendTab uploadedFiles={uploadedFiles} onDone={onCancelAction} />
       ) : (
         <ReceiveTab />
       )}

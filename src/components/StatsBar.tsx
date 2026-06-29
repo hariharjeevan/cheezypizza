@@ -6,25 +6,10 @@ import { useStats, formatBytes, formatBytesSubUnit } from '../hooks/useStats'
 type StatItemProps = {
   value: string
   label: string
-  variant: 'card' | 'footer'
   subUnit?: string | null
 }
 
-function StatItem({
-  value,
-  label,
-  variant,
-  subUnit,
-}: StatItemProps): JSX.Element {
-  if (variant === 'footer') {
-    return (
-      <span className="sb-footer-item">
-        <span className="sb-footer-value">{value}</span>
-        {subUnit && <span className="sb-footer-subunit">{subUnit}</span>}
-        <span className="sb-footer-label">{label}</span>
-      </span>
-    )
-  }
+function StatItem({ value, label, subUnit }: StatItemProps): JSX.Element {
   return (
     <div className="sb-item">
       <span className="sb-value">{value}</span>
@@ -34,64 +19,78 @@ function StatItem({
   )
 }
 
-function LoadingSkeleton({
-  variant,
-}: {
-  variant: 'card' | 'footer'
-}): JSX.Element {
-  if (variant === 'footer') {
-    return (
-      <span className="sb-footer-inner">
-        {[0, 1, 2, 3].map((i) => (
-          <span className="sb-footer-item" key={i}>
-            <span
-              className="sb-value-loading"
-              style={{ width: '36px', height: '11px' }}
-            />
-            <span
-              className="sb-value-loading"
-              style={{ width: '28px', height: '8px' }}
-            />
-          </span>
-        ))}
-      </span>
-    )
-  }
+function LoadingSkeleton(): JSX.Element {
   return (
     <>
-      {[0, 1, 2, 3].map((i) => (
-        <div className="sb-item" key={i}>
-          <div className="sb-value-loading" />
-          <div
-            className="sb-value-loading"
-            style={{ width: '40px', height: '10px' }}
-          />
-        </div>
+      {[0, 1, 2].map((gi) => (
+        <React.Fragment key={gi}>
+          {gi > 0 && <div className="sb-group-divider" />}
+          <div className="sb-group">
+            <div
+              className="sb-value-loading"
+              style={{ width: '32px', height: '9px' }}
+            />
+            <div className="sb-group-items">
+              {[0, 1].map((i) => (
+                <div className="sb-item" key={i}>
+                  <div className="sb-value-loading" />
+                  <div
+                    className="sb-value-loading"
+                    style={{ width: '40px', height: '10px' }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        </React.Fragment>
       ))}
     </>
   )
 }
 
-export default function StatsBar({
-  variant = 'card',
-}: {
-  variant?: 'card' | 'footer'
-}): JSX.Element {
+export default function StatsBar(): JSX.Element {
   const stats = useStats()
 
-  const items = stats
+  const groups = stats
     ? [
         {
-          value: formatBytes(stats.totalBytes),
-          label: 'transferred',
-          subUnit: formatBytesSubUnit(stats.totalBytes),
+          header: 'Internet',
+          items: [
+            {
+              value: formatBytes(stats.totalBytes),
+              label: 'transferred',
+              subUnit: formatBytesSubUnit(stats.totalBytes),
+            },
+            {
+              value: stats.totalTransfers.toLocaleString(),
+              label: 'transfers',
+            },
+          ],
         },
-        { value: stats.totalTransfers.toLocaleString(), label: 'transfers' },
         {
-          value: stats.totalPageviews.toLocaleString(),
-          label: 'all-time visits',
+          header: 'Local',
+          items: [
+            {
+              value: formatBytes(stats.localBytes),
+              label: 'transferred',
+              subUnit: formatBytesSubUnit(stats.localBytes),
+            },
+            {
+              value: stats.localTransfers.toLocaleString(),
+              label: 'transfers',
+            },
+          ],
         },
-        { value: stats.monthPageviews.toLocaleString(), label: 'this month' },
+        {
+          header: 'Visits',
+          items: [
+            { value: stats.totalPageviews.toLocaleString(), label: 'all-time' },
+            {
+              value: stats.monthPageviews.toLocaleString(),
+              label: 'this month',
+            },
+          ],
+        },
       ]
     : null
 
@@ -104,17 +103,42 @@ export default function StatsBar({
           border-radius: 3px;
           background: var(--pizza-border);
           opacity: 0.5;
+          width: 48px;
+          height: 22px;
         }
 
-        /* ── Card variant (homepage) ── */
+        /* ── Layout ── */
         .sb-wrap {
-          max-width: 520px;
+          max-width: 720px;
           width: 100%;
         }
         .sb-inner {
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+        .sb-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          padding: 0 1.5rem;
+          flex: 1;
+        }
+        @media (max-width: 600px) {
+          .sb-inner {
+            justify-content: flex-start;
+            overflow-x: auto;
+            scrollbar-width: none;
+          }
+          .sb-inner::-webkit-scrollbar {
+            display: none;
+          }
+          .sb-item {
+            flex: none;
+            flex-shrink: 0;
+            min-width: 110px;
+          }
         }
         .sb-eyebrow {
           font-family: 'DM Mono', 'Courier New', monospace;
@@ -125,15 +149,7 @@ export default function StatsBar({
           text-align: center;
           margin-bottom: 10px;
         }
-        .sb-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 2px;
-          padding: 0 1.5rem;
-          flex: 1;
-        }
-        .sb-item + .sb-item {
+        .sb-group-items .sb-item + .sb-item {
           border-left: 1px dashed var(--pizza-border);
         }
         .sb-value {
@@ -171,51 +187,31 @@ export default function StatsBar({
           color: var(--pizza-text-muted);
         }
 
-        /* ── Footer variant ── */
-        .sb-footer-wrap {
-          width: 100%;
+        /* ── Groups ── */
+        .sb-group {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+          flex: 1;
         }
-        .sb-footer-eyebrow {
+        .sb-group-header {
           font-family: 'DM Mono', 'Courier New', monospace;
           font-size: 9px;
           letter-spacing: 0.18em;
           text-transform: uppercase;
           color: var(--pizza-text-muted);
-          text-align: center;
-          margin-bottom: 6px;
           opacity: 0.7;
         }
-        .sb-footer-inner {
+        .sb-group-items {
           display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-          gap: 0;
+          width: 100%;
         }
-        .sb-footer-item {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 1px;
-          padding: 0 0.85rem;
-        }
-        .sb-footer-item + .sb-footer-item {
-          border-left: 1px dashed var(--pizza-border);
-        }
-        .sb-footer-value {
-          font-family: 'Caveat', 'Bradley Hand', cursive;
-          font-size: 16px;
-          font-weight: 700;
-          color: var(--pizza-accent);
-          line-height: 1;
-        }
-        .sb-footer-label {
-          font-family: 'DM Mono', 'Courier New', monospace;
-          font-size: 8px;
-          letter-spacing: 0.1em;
-          text-transform: uppercase;
-          color: var(--pizza-text-muted);
-          white-space: nowrap;
+        .sb-group-divider {
+          width: 1px;
+          align-self: stretch;
+          background: var(--pizza-border);
+          flex-shrink: 0;
         }
         .sb-subunit {
           font-family: 'DM Mono', 'Courier New', monospace;
@@ -225,58 +221,38 @@ export default function StatsBar({
           opacity: 0.65;
           line-height: 1;
         }
-        .sb-footer-subunit {
-          font-family: 'DM Mono', 'Courier New', monospace;
-          font-size: 7px;
-          letter-spacing: 0.1em;
-          color: var(--pizza-text-muted);
-          opacity: 0.65;
-          line-height: 1;
-        }
       `}</style>
 
-      {variant === 'footer' ? (
-        <div className="sb-footer-wrap">
-          <p className="sb-footer-eyebrow">PAGE STATS</p>
-          <div className="sb-footer-inner">
-            {items ? (
-              items.map((item) => (
-                <StatItem
-                  key={item.label}
-                  variant="footer"
-                  value={item.value}
-                  label={item.label}
-                  subUnit={item.subUnit}
-                />
-              ))
-            ) : (
-              <LoadingSkeleton variant="footer" />
-            )}
-          </div>
+      <div className="sb-wrap">
+        <p className="sb-eyebrow">PAGE STATS</p>
+        <div className="sb-inner">
+          {groups ? (
+            groups.map((group, gi) => (
+              <React.Fragment key={group.header}>
+                {gi > 0 && <div className="sb-group-divider" />}
+                <div className="sb-group">
+                  <span className="sb-group-header">{group.header}</span>
+                  <div className="sb-group-items">
+                    {group.items.map((item) => (
+                      <StatItem
+                        key={item.label}
+                        value={item.value}
+                        label={item.label}
+                        subUnit={item.subUnit}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </React.Fragment>
+            ))
+          ) : (
+            <LoadingSkeleton />
+          )}
         </div>
-      ) : (
-        <div className="sb-wrap">
-          <p className="sb-eyebrow">PAGE STATS</p>
-          <div className="sb-inner">
-            {items ? (
-              items.map((item) => (
-                <StatItem
-                  key={item.label}
-                  variant="card"
-                  value={item.value}
-                  label={item.label}
-                  subUnit={item.subUnit}
-                />
-              ))
-            ) : (
-              <LoadingSkeleton variant="card" />
-            )}
-          </div>
-          <div className="sb-rule">
-            <span>✦</span>
-          </div>
+        <div className="sb-rule">
+          <span>✦</span>
         </div>
-      )}
+      </div>
     </>
   )
 }

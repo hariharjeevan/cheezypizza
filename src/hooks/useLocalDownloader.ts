@@ -57,7 +57,9 @@ export function useLocalDownloader() {
   const [state, setState] = useState<LocalDownloadState>({ status: 'idle' })
   const dcRef = useRef<RTCDataChannel | null>(null)
   const cancelRef = useRef<(() => void) | null>(null)
-  const acceptRef = useRef<(() => void) | null>(null)
+  const acceptRef = useRef<((handle?: FileSystemFileHandle) => void) | null>(
+    null,
+  )
   const rejectRef = useRef<(() => void) | null>(null)
 
   const attachDataChannel = useCallback((dc: RTCDataChannel) => {
@@ -120,13 +122,15 @@ export function useLocalDownloader() {
       ctrl
         .finalize()
         .then(({ blobUrl }) => {
-          if (!cancelled)
+          if (!cancelled) {
+            recordLocalStats()
             setState({
               status: 'done',
               fileNames: [...completedFiles],
               zipBlobUrl: blobUrl,
               zipFileName: blobUrl ? zipName : undefined,
             })
+          }
         })
         .catch((err) => {
           onError(err instanceof Error ? err.message : 'Failed to finalise zip')
@@ -142,6 +146,15 @@ export function useLocalDownloader() {
     const writeQueue = makeWriteQueue()
     // Cast to ArrayBuffer to fix: Uint8Array<ArrayBufferLike> not assignable to BlobPart
     let blobChunks: ArrayBuffer[] = []
+
+    function recordLocalStats() {
+      if (manifestTotal <= 0) return
+      fetch('/api/stats/record-local', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bytes: manifestTotal }),
+      }).catch(() => {})
+    }
 
     ensureSW().catch(() => {})
 
@@ -286,6 +299,7 @@ export function useLocalDownloader() {
 
       completedFiles.push(file.name)
       if (manifest && completedFiles.length >= manifest.length && !cancelled) {
+        recordLocalStats()
         setState({ status: 'done', fileNames: [...completedFiles] })
       }
     }
@@ -336,7 +350,7 @@ export function useLocalDownloader() {
           // Pause and ask user to accept
           setState({ status: 'awaiting-accept', files: [...manifest] })
 
-          acceptRef.current = () => {
+          acceptRef.current = (preOpenedHandle?: FileSystemFileHandle) => {
             if (cancelled) return
             // Guard: DC may have closed while user was reading the dialog
             if (dc.readyState !== 'open') {
@@ -356,7 +370,7 @@ export function useLocalDownloader() {
               zipOpening = true
               zipName = `cheezypizza_files_${Date.now()}.zip`
 
-              openLocalZipDownload(zipName)
+              openLocalZipDownload(zipName, preOpenedHandle)
                 .then((ctrl) => {
                   if (cancelled) {
                     ctrl.abort().catch(() => {})
@@ -527,9 +541,12 @@ export function useLocalDownloader() {
     }
   }, [])
 
-  const acceptTransfer = useCallback(() => {
-    acceptRef.current?.()
-  }, [])
+  const acceptTransfer = useCallback(
+    (preOpenedHandle?: FileSystemFileHandle) => {
+      acceptRef.current?.(preOpenedHandle)
+    },
+    [],
+  )
 
   const rejectTransfer = useCallback(() => {
     rejectRef.current?.()

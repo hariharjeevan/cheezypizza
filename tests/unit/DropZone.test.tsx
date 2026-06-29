@@ -1,6 +1,6 @@
 /// <reference types="@testing-library/jest-dom" />
 import React from 'react'
-import { render, fireEvent } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import DropZone from '../../src/components/DropZone'
 
@@ -9,11 +9,16 @@ function createFile(name: string) {
 }
 
 describe('DropZone', () => {
-  it('calls onDrop when file selected', () => {
+  it('calls onDropAction with the selected files', () => {
     const fn = vi.fn()
-    const { container } = render(<DropZone onDrop={fn} />)
-    const input = container.querySelector('input') as HTMLInputElement
-    fireEvent.change(input, { target: { files: [createFile('a.txt')] } })
-    expect(fn).toHaveBeenCalled()
+    const { container } = render(<DropZone onDropAction={fn} />)
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement
+
+    const file = createFile('a.txt')
+    Object.defineProperty(input, 'files', { value: [file], configurable: true })
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+
+    expect(fn).toHaveBeenCalledOnce()
+    expect(fn).toHaveBeenCalledWith([file])
   })
 })

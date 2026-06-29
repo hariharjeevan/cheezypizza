@@ -1,15 +1,35 @@
-import { defineConfig } from '@playwright/test'
+import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests/e2e',
-  workers: 1, // Run tests serially to avoid WebRTC port conflicts
+  workers: 1,
   webServer: {
     command: 'pnpm build && node .next/standalone/server.js',
-    url: 'http://localhost:3000',
+    url: 'http://127.0.0.1:3000',
     timeout: 120 * 1000,
     reuseExistingServer: true,
+    stdout: 'pipe',
+    stderr: 'pipe',
   },
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: 'http://127.0.0.1:3000',
   },
+
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'firefox',
+      use: {
+        ...devices['Desktop Firefox'],
+        launchOptions: {
+          firefoxUserPrefs: {
+            'permissions.default.persistent-storage': 1,
+          },
+        },
+      },
+    },
+  ],
 })

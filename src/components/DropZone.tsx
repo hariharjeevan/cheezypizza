@@ -398,11 +398,11 @@ function TextPreview({
 }
 
 export default function DropZone({
-  onDrop,
-  onReceiveLocally,
+  onDropAction,
+  onReceiveLocallyAction,
 }: {
-  onDrop: (files: File[]) => void
-  onReceiveLocally?: () => void
+  onDropAction: (files: File[]) => void
+  onReceiveLocallyAction?: () => void
 }): JSX.Element {
   const [isDragging, setIsDragging] = useState(false)
   const [fileCount, setFileCount] = useState(0)
@@ -470,10 +470,10 @@ export default function DropZone({
       setIsDragging(false)
       if (e.dataTransfer) {
         const files = await extractFileList(e)
-        onDrop(files)
+        onDropAction(files)
       }
     },
-    [onDrop],
+    [onDropAction],
   )
 
   useEffect(() => {
@@ -508,8 +508,8 @@ export default function DropZone({
   const handleUploadText = useCallback(() => {
     if (!text.trim()) return
     const file = new File([text], PASTE_FILENAME, { type: 'text/plain' })
-    onDrop([file])
-  }, [text, onDrop])
+    onDropAction([file])
+  }, [text, onDropAction])
 
   const handleCancel = useCallback(() => {
     setShowTextBox(false)
@@ -527,7 +527,7 @@ export default function DropZone({
         ref={fileInputRef}
         className="hidden"
         onChange={(e) => {
-          if (e.target.files) onDrop(Array.from(e.target.files))
+          if (e.target.files) onDropAction(Array.from(e.target.files))
         }}
         multiple
       />
@@ -606,9 +606,9 @@ export default function DropZone({
                 Paste text
               </button>
             </div>
-            {onReceiveLocally && (
+            {onReceiveLocallyAction && (
               <button
-                onClick={onReceiveLocally}
+                onClick={onReceiveLocallyAction}
                 className="btn-secondary"
                 style={{
                   borderColor: 'var(--pizza-accent-warm)',
@@ -617,6 +617,11 @@ export default function DropZone({
                   fontFamily: 'DM Mono, monospace',
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.15rem',
+                  lineHeight: 1.2,
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'var(--pizza-accent-warm)'
@@ -627,26 +632,35 @@ export default function DropZone({
                   e.currentTarget.style.color = 'var(--pizza-accent-warm)'
                 }}
               >
-                <LuWifi
-                  aria-hidden="true"
-                  className="w-4 h-4 sm:w-3 sm:h-3 md:w-4 md:h-4 shrink-0"
-                />
-                Receive from a local device <br />
-                (On the same network)
+                <span
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                >
+                  <LuWifi aria-hidden="true" className="w-4 h-4 shrink-0" />
+                  Receive from local device
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    opacity: 0.7,
+                    textTransform: 'none',
+                    letterSpacing: '0.05em',
+                  }}
+                >
+                  (Same network)
+                </span>
               </button>
             )}
           </div>
         ) : (
-          /* ── Paste / text state ──
-               Outer div is h-full flex-col. p-4 (16px) + gap-3 (12px) + button row (40px) = 68px overhead.
-               TextPreview (flex-1) fills the remaining 300 - 4px border - 68px = ~228px ≈ 225px target.
-               All three inner states (pending / denied / preview) are flex-1 so the button row never shifts. */
           <div
             className="flex flex-col h-full p-4 gap-3"
             style={{ minHeight: 0 }}
           >
             {clipboardPending ? (
-              /* Pending — same flex-1 slot as TextPreview */
               <div
                 className="flex items-center justify-center text-sm"
                 style={{
@@ -661,7 +675,6 @@ export default function DropZone({
                 Loading…
               </div>
             ) : clipboardDenied ? (
-              /* Denied — same flex-1 slot, invisible textarea captures manual paste */
               <div
                 className="flex flex-col items-center justify-center gap-2 text-sm text-center px-4"
                 style={{
@@ -689,7 +702,6 @@ export default function DropZone({
                 />
               </div>
             ) : (
-              /* Normal text / code / URL preview — flex-1 fills remaining space */
               <TextPreview
                 text={text}
                 detection={detection}
@@ -701,7 +713,6 @@ export default function DropZone({
               />
             )}
 
-            {/* Button row — always shrink-0, always 40px tall, never shifts */}
             <div
               className="flex gap-3 justify-end shrink-0"
               style={{ height: '2.5rem' }}
