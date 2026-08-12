@@ -2,7 +2,7 @@ import React from 'react'
 import { Viewport } from 'next'
 import { ViewTransitions } from 'next-view-transitions'
 //import Script from 'next/script'
-import { Analytics } from '@vercel/analytics/next'
+//import { Analytics } from '@vercel/analytics/next'
 import { Caveat, DM_Mono } from 'next/font/google'
 import { ThemeProvider } from '../components/ThemeProvider'
 import FilePizzaQueryClientProvider from '../components/QueryClientProvider'
@@ -86,7 +86,7 @@ export default function RootLayout({
     <ViewTransitions>
       <html lang="en" suppressHydrationWarning>
         <head>
-          <link rel="manifest" href="/manifest.webmanifest" />
+          <link rel="manifest" href="/manifest.json" />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
@@ -109,8 +109,9 @@ export default function RootLayout({
               src="https://static.cloudflareinsights.com/beacon.min.js"
               data-cf-beacon='{"token": "345a2254fa94545bf88d65926273523", "spa": true}'
               strategy="afterInteractive"
-            /> */}
+            /> 
             <Analytics />
+            */}
             <FilePizzaQueryClientProvider>
               <Navbar />
               <main>{children}</main>

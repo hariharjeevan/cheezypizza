@@ -197,8 +197,8 @@ export default function ScrollToTopWidget() {
           <div className="stt-panel-row">
             <LuSearch size={13} className="hu-icon" aria-hidden="true" />
             <p className="stt-panel-text">
-              Help us <code>maintain</code> and keep the website <code>up and running</code>.
-              Donate now.
+              Help us <code>maintain</code> and keep the website{' '}
+              <code>up and running</code>. Donate now.
             </p>
           </div>
 
