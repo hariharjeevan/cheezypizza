@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 function generateURL(slug: string): string {
   const hostPrefix =
@@ -12,7 +12,7 @@ function generateURL(slug: string): string {
 
 export function useUploaderChannel(
   uploaderPeerID: string,
-  renewInterval = 60_000,
+  renewInterval = 300_000,
 ): {
   isLoading: boolean
   error: Error | null
@@ -80,32 +80,52 @@ export function useUploaderChannel(
     },
   })
 
+  const mutateRef = useRef(renewMutation.mutate)
+  mutateRef.current = renewMutation.mutate
+
   useEffect(() => {
     if (!secret || !shortSlug) return
 
     let timeout: NodeJS.Timeout | null = null
+    let cancelled = false
 
     const run = (): void => {
-      timeout = setTimeout(() => {
-        console.log(
-          '[UploaderChannel] scheduling channel renewal in',
-          renewInterval,
-          'ms',
-        )
-        renewMutation.mutate({ secret })
-        run()
+      timeout = setTimeout(async () => {
+        console.log('[UploaderChannel] renewing channel for slug', shortSlug)
+        try {
+          await new Promise<void>((resolve, reject) =>
+            mutateRef.current(
+              { secret },
+              {
+                onSuccess: () => resolve(),
+                onError: (err) => reject(err),
+              },
+            ),
+          )
+        } catch {
+          // Renewal failed (e.g. channel expired/destroyed server-side).
+          // Stop the loop instead of retrying forever.
+          console.error(
+            '[UploaderChannel] renewal failed, stopping renewal loop for slug',
+            shortSlug,
+          )
+          return
+        }
+
+        if (!cancelled) run()
       }, renewInterval)
     }
 
     run()
 
     return () => {
+      cancelled = true
       if (timeout) {
         console.log('[UploaderChannel] clearing renewal timeout')
         clearTimeout(timeout)
       }
     }
-  }, [secret, shortSlug, renewMutation, renewInterval])
+  }, [secret, shortSlug, renewInterval])
 
   useEffect(() => {
     if (!shortSlug || !secret) return

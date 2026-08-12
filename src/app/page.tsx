@@ -20,11 +20,7 @@ import UploadingState from '../components/UploadingState'
 import { UploadedFile } from '../types'
 
 type PageStep =
-  | 'initial'
-  | 'share-mode'
-  | 'internet-confirm'
-  | 'internet-uploading'
-  | 'local'
+  'initial' | 'share-mode' | 'internet-confirm' | 'internet-uploading' | 'local'
 
 export default function UploadPage(): JSX.Element {
   const [step, setStep] = useState<PageStep>('initial')

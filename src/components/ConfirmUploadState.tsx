@@ -15,6 +15,7 @@ function useUploaderFileListData(uploadedFiles: UploadedFile[]) {
     return uploadedFiles.map((item) => ({
       fileName: getFileName(item),
       type: item.type,
+      size: item.size,
     }))
   }, [uploadedFiles])
 }

@@ -10,6 +10,56 @@ export type Stats = {
   localTransfers: number
 }
 
+const PING_CACHE_KEY = 'stats:pinged:'
+const STATS_CACHE_KEY = 'stats:payload'
+
+export function getStatsPingCacheKey(): string {
+  return `${PING_CACHE_KEY}${new Date().toISOString().slice(0, 10)}`
+}
+
+export function shouldSkipStatsPing(): boolean {
+  if (typeof window === 'undefined') return false
+  return sessionStorage.getItem(getStatsPingCacheKey()) === '1'
+}
+
+function readStoredStats(): Stats | null {
+  if (typeof window === 'undefined') return null
+
+  try {
+    const raw = sessionStorage.getItem(STATS_CACHE_KEY)
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw) as {
+      timestamp?: number
+      data?: Stats
+    } | null
+    if (!parsed?.data || typeof parsed.timestamp !== 'number') return null
+
+    const age = Date.now() - parsed.timestamp
+    if (age > CACHE_TTL) {
+      sessionStorage.removeItem(STATS_CACHE_KEY)
+      return null
+    }
+
+    return parsed.data
+  } catch {
+    sessionStorage.removeItem(STATS_CACHE_KEY)
+    return null
+  }
+}
+
+function writeStoredStats(data: Stats): void {
+  if (typeof window === 'undefined') return
+
+  sessionStorage.setItem(
+    STATS_CACHE_KEY,
+    JSON.stringify({
+      timestamp: Date.now(),
+      data,
+    }),
+  )
+}
+
 function getOrCreateVisitorId(): string {
   const KEY = '_cpvid'
   let vid = localStorage.getItem(KEY)
@@ -27,20 +77,38 @@ let _fetchedAt: number = 0
 const CACHE_TTL = 30 * 60 * 1000
 
 function fetchStats(): Promise<Stats> {
+  const storedStats = readStoredStats()
+  if (storedStats) {
+    _cache = storedStats
+    _fetchedAt = Date.now()
+    return Promise.resolve(storedStats)
+  }
+
   if (_promise && Date.now() - _fetchedAt < CACHE_TTL) return _promise
   _promise = null
+
+  const shouldSkipPing = shouldSkipStatsPing()
   const vid = getOrCreateVisitorId()
-  _promise = fetch('/api/stats/ping', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ vid }),
-  })
-    .catch(() => {})
+
+  const pingRequest = shouldSkipPing
+    ? Promise.resolve()
+    : fetch('/api/stats/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vid }),
+      })
+        .then(() => {
+          sessionStorage.setItem(getStatsPingCacheKey(), '1')
+        })
+        .catch(() => {})
+
+  _promise = pingRequest
     .then(() => fetch('/api/stats'))
     .then((r) => r.json())
     .then((data: Stats) => {
       _cache = data
       _fetchedAt = Date.now()
+      writeStoredStats(data)
       return data
     })
     .catch(() => {

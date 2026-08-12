@@ -1291,6 +1291,11 @@ export function useDownloader(uploaderPeerID: string): {
     isIntentionalDisconnectRef.current = true
     setIsDownloading(false)
     setIsPaused(true)
+    // Stop routing incoming chunks BEFORE closing writers — the data
+    // connection isn't closed until after flushAndCloseAllWriters() below,
+    // so a chunk arriving mid-flush could otherwise write into (or close)
+    // a writer that's concurrently being torn down.
+    processChunkRef.current = null
     await flushAndCloseAllWriters()
 
     if (dataConnectionRef.current) {
@@ -1334,6 +1339,9 @@ export function useDownloader(uploaderPeerID: string): {
 
   const stopDownload = useCallback(async () => {
     isIntentionalDisconnectRef.current = true
+    // Stop routing incoming chunks BEFORE closing writers — see comment in
+    // pauseDownload for why this ordering matters.
+    processChunkRef.current = null
     await flushAndCloseAllWriters()
 
     if (dataConnectionRef.current) {

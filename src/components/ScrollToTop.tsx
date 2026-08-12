@@ -78,13 +78,13 @@ export default function ScrollToTopWidget() {
           color: var(--pizza-text-muted);
         }
         .stt-panel-text {
-          font-size: 12px;
+          font-size: 13px;
           line-height: 1.5;
           color: var(--pizza-text-muted);
         }
         .stt-panel-text code {
           font-family: 'DM Mono', monospace;
-          font-size: 10px;
+          font-size: 11px;
           background: var(--pizza-bg-subtle);
           border: 1px solid var(--pizza-border);
           border-radius: 2px;
@@ -197,9 +197,8 @@ export default function ScrollToTopWidget() {
           <div className="stt-panel-row">
             <LuSearch size={13} className="hu-icon" aria-hidden="true" />
             <p className="stt-panel-text">
-              Search <code>cheezypizza</code> on Google and click{' '}
-              <code>www.cheezypizza.in</code> It takes 10 seconds and helps
-              others find us.
+              Help us <code>maintain</code> and keep the website <code>up and running</code>.
+              Donate now.
             </p>
           </div>
 

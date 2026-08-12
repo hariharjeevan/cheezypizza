@@ -43,5 +43,10 @@ minimumReleaseAgeExclude:
   - next@15.5.18
   - ws@8.20.1
   - qs@6.15.2
+  - vitest@3.2.6
+  - esbuild@0.28.1
+  - vite@7.3.5
+  - '@babel/core@7.29.1'
+  - js-yaml@4.1.2
 packages:
   - 'peerjs-server'

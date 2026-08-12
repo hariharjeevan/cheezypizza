@@ -19,6 +19,8 @@ export default function UploadingState({
     <PageWrapper>
       <TitleText>
         Uploading {pluralize(uploadedFiles.length, 'file', 'files')}...
+        <br />
+        (DO NOT CLOSE THIS TAB)
       </TitleText>
       <WebRTCPeerProvider>
         <Uploader files={uploadedFiles} password={password} onStop={onStop} />

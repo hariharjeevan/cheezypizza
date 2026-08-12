@@ -83,6 +83,11 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
         let currentIsFinal = isFinal
 
         while (true) {
+          // Re-check on every iteration, not just on entry — this loop can
+          // span multiple awaits (draining pendingChunks), and the writer
+          // can be closed concurrently (pause/stop/cleanup) mid-loop.
+          if (writer.closed || writer.finalized) return
+
           const chunkSize = currentChunk.byteLength
 
           await writer.writable.write({
