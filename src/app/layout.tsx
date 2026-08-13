@@ -86,7 +86,7 @@ export default function RootLayout({
     <ViewTransitions>
       <html lang="en" suppressHydrationWarning>
         <head>
-          <link rel="manifest" href="/manifest.json" />
+          {/*<link rel="manifest" href="/manifest.json" />*/}
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{
