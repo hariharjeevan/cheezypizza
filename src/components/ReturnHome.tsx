@@ -6,6 +6,7 @@ export default function ReturnHome(): JSX.Element {
     <div className="flex justify-center">
       <Link
         href="/"
+        prefetch={false}
         className="text-stone-500 dark:text-stone-200 hover:underline"
       >
         Serve up a fresh slice &raquo;

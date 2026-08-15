@@ -759,6 +759,7 @@ export default function LocalReceivePage(): JSX.Element {
 
           <Link
             href="/"
+            prefetch={false}
             className="btn-primary"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
           >

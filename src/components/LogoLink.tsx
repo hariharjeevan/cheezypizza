@@ -12,6 +12,7 @@ export default function LogoLink() {
       onClick={() => {
         if (pathname === '/') window.location.reload()
       }}
+      prefetch={false}
       className="flex items-center shrink-0 hover:opacity-75 transition-opacity duration-200"
       aria-label="CheezyPizza home"
     >

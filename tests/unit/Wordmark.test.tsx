@@ -6,7 +6,7 @@ import Wordmark from '../../src/components/Wordmark'
 
 describe('Wordmark', () => {
   it('renders svg', () => {
-    const { getByAltText } = render(<Wordmark />)
-    expect(getByAltText('CheezyPizza')).toBeInTheDocument()
+    const { getByRole } = render(<Wordmark />)
+    expect(getByRole('img', { name: 'CheezyPizza' })).toBeInTheDocument()
   })
 })
