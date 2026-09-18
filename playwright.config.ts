@@ -18,7 +18,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          args: ['--disable-features=WebRtcHideLocalIpsWithMdns'],
+        },
+      },
     },
     {
       name: 'firefox',
@@ -27,6 +32,10 @@ export default defineConfig({
         launchOptions: {
           firefoxUserPrefs: {
             'permissions.default.persistent-storage': 1,
+            // Disable mDNS ICE candidate obfuscation so two local contexts can
+            // establish a WebRTC data channel (same reason as the Chromium
+            // --disable-features=WebRtcHideLocalIpsWithMdns flag above).
+            'media.peerconnection.ice.obfuscate_host_addresses': false,
           },
         },
       },

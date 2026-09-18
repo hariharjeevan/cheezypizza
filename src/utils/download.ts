@@ -22,10 +22,13 @@
 
 import { createZipStream } from '../zip-stream'
 
-if (typeof window !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('web-streams-polyfill/polyfill')
-}
+// NOTE: do NOT import 'web-streams-polyfill/polyfill' here. It overwrites the
+// native global ReadableStream unconditionally, and the native Response body
+// conversion does not recognise the polyfilled class. Passing such a stream to
+// `new Response(stream)` silently stringifies it to "[object ReadableStream]",
+// which is the empty/corrupt ZIP seen in issue #8. All supported browsers have
+// native Web Streams; if a fallback is ever needed, use the ponyfill form and
+// keep the native globals intact.
 
 const streamSaver: typeof import('streamsaver') | null =
   typeof window !== 'undefined'
@@ -127,36 +130,167 @@ async function saveViaStreamSaver(
 }
 
 /**
- * Fallback 3 (last resort): stream a ReadableStream via Response + createObjectURL + <a download>.
- * Buffers into memory. On the IDB/mobile path the data is already a Blob in memory,
- * so we skip the Response wrapping and create the object URL directly.
+ * Collects a ReadableStream into a Blob by reading it directly.
+ *
+ * Last-resort fallback used only when OPFS is unavailable — the normal path
+ * spills to disk (see `saveStreamViaObjectURL`) so large payloads never have to
+ * be held in memory.
+ *
+ * We deliberately avoid `new Response(stream)`: the native Response body
+ * conversion only accepts its own ReadableStream brand. Any other stream
+ * implementation (e.g. a global polyfill) is coerced to a string, producing a
+ * body of literally "[object ReadableStream]" instead of the stream contents.
+ * Reading the reader works with any spec-compliant stream.
  */
-async function saveViaObjectURL(
-  streamOrBlob: ReadableStream<Uint8Array> | Blob,
-  filename: string,
-): Promise<void> {
-  let url: string
-
-  if (streamOrBlob instanceof Blob) {
-    url = URL.createObjectURL(streamOrBlob)
-  } else {
-    const response = new Response(streamOrBlob)
-    const blob = await response.blob()
-    url = URL.createObjectURL(blob)
+async function streamToBlob(stream: ReadableStream<Uint8Array>): Promise<Blob> {
+  const reader = stream.getReader()
+  const chunks: Uint8Array[] = []
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
   }
+  // Cast: Uint8Array<ArrayBufferLike>[] is accepted at runtime but TS narrows
+  // BlobPart to ArrayBufferView<ArrayBuffer>. We keep the original views (not
+  // `.buffer`) so byteOffset/length from the stream chunks are preserved.
+  return new Blob(chunks as BlobPart[], {
+    type: 'application/octet-stream',
+  })
+}
+
+/** Triggers a browser download for an already-created object URL. */
+function triggerDownloadUrl(url: string, filename: string): void {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.style.display = 'none'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+
+  // Keep the object URL alive long enough for the download manager to consume
+  // it. Revoking too early truncates the download on some mobile browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+
+function triggerDownload(blobOrFile: Blob | File, filename: string): void {
+  triggerDownloadUrl(URL.createObjectURL(blobOrFile), filename)
+}
+
+type OPFSTempTarget = {
+  writable: FileSystemWritableFileStream
+  /** Close the writer and return the resulting File snapshot. */
+  finish: () => Promise<File>
+  /** Delete the temporary OPFS entry. Safe once an object URL exists. */
+  cleanup: () => Promise<void>
+  /** Abort the write and delete the temporary entry. */
+  abort: () => Promise<void>
+}
+
+/**
+ * Opens a temporary OPFS file to spill a download stream to disk instead of
+ * buffering it in memory. Returns null when OPFS is unavailable so the caller
+ * can fall back to the in-memory path.
+ */
+async function openOPFSTempTarget(): Promise<OPFSTempTarget | null> {
+  if (typeof navigator === 'undefined' || !navigator.storage?.getDirectory) {
+    return null
+  }
+
+  let root: FileSystemDirectoryHandle | null = null
+  const tmpName = `__dl_${Math.random().toString(36).slice(2)}.tmp`
 
   try {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.style.display = 'none'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    await new Promise((r) => setTimeout(r, 1000))
-  } finally {
-    URL.revokeObjectURL(url)
+    root = await navigator.storage.getDirectory()
+    const handle = await root.getFileHandle(tmpName, { create: true })
+    const writable = await handle.createWritable({ keepExistingData: false })
+    let closed = false
+
+    return {
+      writable,
+      async finish() {
+        if (!closed) {
+          closed = true
+          await writable.close()
+        }
+        return handle.getFile()
+      },
+      async cleanup() {
+        await root!.removeEntry(tmpName).catch(() => {})
+      },
+      async abort() {
+        if (!closed) {
+          closed = true
+          try {
+            await writable.abort()
+          } catch {
+            /* ignore */
+          }
+        }
+        await root!.removeEntry(tmpName).catch(() => {})
+      },
+    }
+  } catch (err) {
+    if (root) await root.removeEntry(tmpName).catch(() => {})
+    console.warn(
+      '[download] OPFS temp file unavailable, buffering in memory:',
+      err,
+    )
+    return null
   }
+}
+
+async function pumpStreamToWritable(
+  stream: ReadableStream<Uint8Array>,
+  writable: FileSystemWritableFileStream,
+): Promise<void> {
+  const reader = stream.getReader()
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      await writable.write(value as unknown as FileSystemWriteChunkType)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
+
+/**
+ * Fallback 3 (last resort, object URL): spill the payload to a temporary OPFS
+ * file and download the resulting File, so large zips never have to be held in
+ * memory. Falls back to an in-memory Blob only when OPFS is unavailable.
+ */
+async function saveStreamViaObjectURL(
+  stream: ReadableStream<Uint8Array>,
+  filename: string,
+): Promise<void> {
+  const target = await openOPFSTempTarget()
+
+  if (target) {
+    try {
+      await pumpStreamToWritable(stream, target.writable)
+      const file = await target.finish()
+      const url = URL.createObjectURL(file)
+      triggerDownloadUrl(url, filename)
+      // Drop the temp entry only once the browser has had time to start reading
+      // the download. Removing it before the click cancels the download because
+      // the object URL is backed by the OPFS entry.
+      setTimeout(() => {
+        void target.cleanup()
+      }, 10_000)
+      return
+    } catch (err) {
+      await target.abort()
+      throw err
+    }
+  }
+
+  triggerDownload(await streamToBlob(stream), filename)
 }
 
 // Zip worker helpers
@@ -331,8 +465,12 @@ export async function streamDownloadSingleFile(
     }
   }
 
-  // 3. objectURL — if we already have a Blob (IDB path), use it directly
-  await saveViaObjectURL(file.blob ?? (await entryToStream(file)), safeName)
+  // 3. objectURL — use the File/Blob directly so nothing is re-buffered.
+  if (file.handle) {
+    triggerDownload(await file.handle.getFile(), safeName)
+  } else {
+    triggerDownload(file.blob, safeName)
+  }
 }
 
 /**
@@ -392,6 +530,6 @@ export async function streamDownloadMultipleFiles(
     }
   }
 
-  // 3. objectURL — buffers into memory
-  await saveViaObjectURL(getZipStream(), safeName)
+  // 3. objectURL — spill the zip to OPFS instead of buffering it in memory
+  await saveStreamViaObjectURL(getZipStream(), safeName)
 }

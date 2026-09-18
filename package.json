@@ -63,7 +63,6 @@
     "react-qr-code": "^2.2.0",
     "streamsaver": "^2.0.6",
     "tailwindcss": "^4.3.0",
-    "web-streams-polyfill": "^4.3.0",
     "webrtcsupport": "^2.2.0",
     "zod": "^4.4.3"
   },

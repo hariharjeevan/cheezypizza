@@ -1,8 +1,9 @@
-import { Page, Browser, expect } from '@playwright/test'
+import { Page, Browser, BrowserContextOptions, expect } from '@playwright/test'
 import { createHash, randomBytes } from 'crypto'
-import { writeFileSync, mkdirSync } from 'fs'
+import { writeFileSync, mkdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { unzipSync } from 'fflate'
 
 export interface TestFile {
   name: string
@@ -23,9 +24,14 @@ export function createTestFile(fileName: string, content: string): TestFile {
   return { name: fileName, content, path: testFilePath, checksum }
 }
 
-export async function uploadFile(page: Page, testFile: TestFile): Promise<void> {
+export async function uploadFile(
+  page: Page,
+  testFile: TestFile,
+): Promise<void> {
   await page.goto('http://127.0.0.1:3000/')
-  await expect(page.getByText('Peer-to-peer file transfers in your browser.')).toBeVisible()
+  await expect(
+    page.getByText('Peer-to-peer file transfers in your browser.'),
+  ).toBeVisible()
   await expect(page.getByRole('button', { name: /select file/i })).toBeVisible()
 
   await page.setInputFiles('input[type="file"]', testFile.path)
@@ -33,7 +39,9 @@ export async function uploadFile(page: Page, testFile: TestFile): Promise<void> 
   await page.getByRole('button', { name: /internet share/i }).click()
 
   await expect(page.getByText(testFile.name)).toBeVisible({ timeout: 10000 })
-  await expect(page.getByText(/You are about to start uploading/i)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/You are about to start uploading/i)).toBeVisible(
+    { timeout: 10000 },
+  )
 }
 
 export async function addFile(page: Page, testFile: TestFile): Promise<void> {
@@ -66,24 +74,38 @@ export async function downloadFile(
   // Start the transfer
   await page.locator('#download-button').click()
 
-  await expect(page.getByText(/file ready to save/i)).toBeVisible({ timeout: 30000 })
+  await expect(page.getByText(/file ready to save/i)).toBeVisible({
+    timeout: 30000,
+  })
 
   await page.locator('#download-button').click()
 
-  await expect(page.getByText(/You downloaded/i)).toBeVisible({ timeout: 10000 })
+  await expect(page.getByText(/You downloaded/i)).toBeVisible({
+    timeout: 10000,
+  })
 }
 
-export async function verifyTransferCompletion(downloaderPage: Page): Promise<void> {
-  await expect(downloaderPage.getByText(/You downloaded/i)).toBeVisible({ timeout: 10000 })
+export async function verifyTransferCompletion(
+  downloaderPage: Page,
+): Promise<void> {
+  await expect(downloaderPage.getByText(/You downloaded/i)).toBeVisible({
+    timeout: 10000,
+  })
 }
 
-export async function createBrowserContexts(browser: Browser): Promise<{
+export async function createBrowserContexts(
+  browser: Browser,
+  options: {
+    uploader?: BrowserContextOptions
+    downloader?: BrowserContextOptions
+  } = {},
+): Promise<{
   uploaderPage: Page
   downloaderPage: Page
   cleanup: () => Promise<void>
 }> {
-  const uploaderContext = await browser.newContext()
-  const downloaderContext = await browser.newContext()
+  const uploaderContext = await browser.newContext(options.uploader)
+  const downloaderContext = await browser.newContext(options.downloader)
 
   await downloaderContext.addInitScript(() => {
     Object.defineProperty(window, 'showSaveFilePicker', {
@@ -101,6 +123,47 @@ export async function createBrowserContexts(browser: Browser): Promise<{
   }
 
   return { uploaderPage, downloaderPage, cleanup }
+}
+
+export interface CapturedZip {
+  /** Raw bytes delivered to the browser's download manager. */
+  raw: Uint8Array
+  /** Parsed zip entries keyed by entry name. */
+  entries: Record<string, Uint8Array>
+  suggestedFilename: string
+}
+
+/**
+ * Clicks the final save button and captures whatever the browser downloads,
+ * then verifies it is a real ZIP archive (not the 23-byte
+ * "[object ReadableStream]" string that issue #8 produced).
+ */
+export async function saveZipAndCapture(page: Page): Promise<CapturedZip> {
+  const downloadPromise = page.waitForEvent('download', { timeout: 30000 })
+  await page.locator('#download-button').click()
+  const download = await downloadPromise
+
+  const path = await download.path()
+  if (!path) {
+    throw new Error('Playwright did not provide a download path')
+  }
+
+  const raw = new Uint8Array(readFileSync(path))
+  const looksLikeZip = raw.length >= 4 && raw[0] === 0x50 && raw[1] === 0x4b
+
+  expect(
+    looksLikeZip,
+    `Downloaded file is not a ZIP archive. ` +
+      `Got ${raw.length} bytes: ${Buffer.from(raw.subarray(0, 64)).toString(
+        'utf8',
+      )}`,
+  ).toBe(true)
+
+  return {
+    raw,
+    entries: unzipSync(raw),
+    suggestedFilename: download.suggestedFilename(),
+  }
 }
 
 export interface ChunkProgressLog {
@@ -131,7 +194,9 @@ export function monitorChunkProgress(
     const text = msg.text()
     if (!text.includes('[UploaderConnections] received chunk ack')) return
 
-    const ackMatch = text.match(/received chunk ack: (\S+) offset (\d+) bytes (\d+)/)
+    const ackMatch = text.match(
+      /received chunk ack: (\S+) offset (\d+) bytes (\d+)/,
+    )
     if (!ackMatch) return
 
     const [, fileName, offset, bytes] = ackMatch
@@ -151,9 +216,15 @@ export function monitorChunkProgress(
 
   downloaderPage.on('console', (msg) => {
     const text = msg.text()
-    if (!text.includes('[Downloader] received chunk') || text.includes('finished receiving')) return
+    if (
+      !text.includes('[Downloader] received chunk') ||
+      text.includes('finished receiving')
+    )
+      return
 
-    const chunkMatch = text.match(/received chunk (\d+) for (\S+) \((\d+)-(\d+)\) final=(\w+)/)
+    const chunkMatch = text.match(
+      /received chunk (\d+) for (\S+) \((\d+)-(\d+)\) final=(\w+)/,
+    )
     if (!chunkMatch) return
 
     const [, chunkNum, fileName, offset, end, final] = chunkMatch
@@ -187,7 +258,9 @@ export function verifyPreciseProgress(
     expect(chunk.chunkNumber).toBe(i + 1)
 
     if (i > 0) {
-      expect(chunk.progressPercentage).toBeGreaterThanOrEqual(chunks[i - 1].progressPercentage)
+      expect(chunk.progressPercentage).toBeGreaterThanOrEqual(
+        chunks[i - 1].progressPercentage,
+      )
     }
 
     if (chunk.final) {

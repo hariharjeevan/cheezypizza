@@ -8,10 +8,9 @@
 
 import { Zip, ZipPassThrough } from 'fflate'
 
-if (typeof window !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  require('web-streams-polyfill/polyfill')
-}
+// NOTE: intentionally no 'web-streams-polyfill/polyfill' import — it replaces
+// the native global ReadableStream and breaks native Response body conversion
+// (see the note in utils/download.ts and issue #8).
 
 const streamSaver: typeof import('streamsaver') | null =
   typeof window !== 'undefined'
