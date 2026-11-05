@@ -22,7 +22,7 @@ import {
   safeSendOnConn,
 } from './sender'
 
-const PROGRESS_INTERVAL_MS = 250
+const PROGRESS_INTERVAL_MS = 1000
 
 function waitForBufferDrain(conn: DataConnection): Promise<void> {
   return new Promise((resolve) => {
@@ -107,10 +107,10 @@ export function useUploaderConnections(
       const ackedBytesRef = { current: 0 }
       const bytesTransferredRef = { current: 0 }
       const speedBpsRef = { current: 0 }
-      let emaSpeed: number | null = null
-      let emaSamples = 0
-      let lastEmaBytes = 0
-      let lastEmaTime = Date.now()
+      const speedWindow: Array<{ t: number; b: number }> = []
+      const uiSpeedRef = { current: 0 }
+      let lastSampleBytes = 0
+      let lastSampleTime = Date.now()
 
       const updateConnection = (
         fn: (c: UploaderConnection) => UploaderConnection,
@@ -122,20 +122,35 @@ export function useUploaderConnections(
 
       const progressInterval = setInterval(() => {
         const now = Date.now()
-        const elapsed = (now - lastEmaTime) / 1000
-        const delta = ackedBytesRef.current - lastEmaBytes
-        lastEmaBytes = ackedBytesRef.current
-        lastEmaTime = now
+        const elapsed = (now - lastSampleTime) / 1000
+        const delta = Math.max(0, ackedBytesRef.current - lastSampleBytes)
+        lastSampleBytes = ackedBytesRef.current
+        lastSampleTime = now
 
-        if (elapsed > 0 && delta >= 0) {
-          const instant = delta / elapsed
-          emaSpeed =
-            emaSpeed === null ? instant : 0.4 * instant + 0.6 * emaSpeed
-          emaSamples++
+        if (elapsed > 0 && delta > 0) {
+          speedWindow.push({ t: now, b: delta })
         }
 
-        const speedBps = emaSamples >= 2 ? (emaSpeed ?? 0) : 0
+        const cutoff = now - 5000
+        while (speedWindow.length > 0 && speedWindow[0].t < cutoff) {
+          speedWindow.shift()
+        }
+
+        const rawSpeedBps =
+          speedWindow.length > 0
+            ? speedWindow.reduce((sum, sample) => sum + sample.b, 0) /
+              Math.max(0.5, (now - speedWindow[0].t) / 1000)
+            : 0
+
+        const speedBps =
+          rawSpeedBps > 0
+            ? uiSpeedRef.current === 0
+              ? rawSpeedBps
+              : uiSpeedRef.current * 0.7 + rawSpeedBps * 0.3
+            : uiSpeedRef.current * 0.55
+
         speedBpsRef.current = speedBps
+        uiSpeedRef.current = speedBps
 
         setConnections((conns) =>
           conns.map((c) => {
@@ -174,10 +189,10 @@ export function useUploaderConnections(
       const stopProgress = () => clearInterval(progressInterval)
 
       const resetEMA = () => {
-        emaSpeed = null
-        emaSamples = 0
-        lastEmaBytes = ackedBytesRef.current
-        lastEmaTime = Date.now()
+        speedWindow.length = 0
+        uiSpeedRef.current = 0
+        lastSampleBytes = ackedBytesRef.current
+        lastSampleTime = Date.now()
       }
 
       setConnections((conns) => {
@@ -318,7 +333,7 @@ export function useUploaderConnections(
                   currentFileProgress: file.size > 0 ? offset / file.size : 0,
                 }
               })
-              runSendWindow(conn, files, sender)
+              runSendWindow(conn, files, sender, ackedBytesRef)
               break
             }
 

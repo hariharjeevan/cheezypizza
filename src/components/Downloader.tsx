@@ -157,6 +157,23 @@ export function DownloadInProgress({
   isReconnecting?: boolean
   isStreaming?: boolean
 }): JSX.Element {
+  const [displaySpeed, setDisplaySpeed] = useState(speedBytesPerSec)
+
+  useEffect(() => {
+    if (speedBytesPerSec === undefined) {
+      setDisplaySpeed(undefined)
+      return
+    }
+
+    setDisplaySpeed((prev) => {
+      if (prev === undefined || speedBytesPerSec === undefined) {
+        return speedBytesPerSec
+      }
+      const next = prev * 0.7 + speedBytesPerSec * 0.3
+      return Number.isFinite(next) ? next : speedBytesPerSec
+    })
+  }, [speedBytesPerSec])
+
   const filesWithHashProgress = filesInfo.map((f) => ({
     ...f,
     hashProgress: hashingProgress?.[f.fileName],
@@ -173,9 +190,7 @@ export function DownloadInProgress({
           <ProgressBar value={bytesDownloaded} max={totalSize} />
           <div className="mt-2 flex justify-between text-xs text-stone-500 dark:text-stone-400">
             <span>
-              {isReconnecting
-                ? 'Reconnecting...'
-                : formatSpeed(speedBytesPerSec)}
+              {isReconnecting ? 'Reconnecting...' : formatSpeed(displaySpeed)}
             </span>
             <span>{isReconnecting ? '' : formatETA(etaSeconds)}</span>
           </div>

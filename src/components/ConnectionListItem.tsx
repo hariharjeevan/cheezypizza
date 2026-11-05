@@ -1,4 +1,4 @@
-import React, { JSX } from 'react'
+import React, { JSX, useEffect, useState } from 'react'
 import { UploaderConnection, UploaderConnectionStatus } from '../types'
 import ProgressBar from './ProgressBar'
 
@@ -7,6 +7,22 @@ export function ConnectionListItem({
 }: {
   conn: UploaderConnection
 }): JSX.Element {
+  const [displaySpeed, setDisplaySpeed] = useState(conn.speedBytesPerSec)
+
+  useEffect(() => {
+    if (conn.speedBytesPerSec === undefined) {
+      setDisplaySpeed(undefined)
+      return
+    }
+
+    setDisplaySpeed((prev) => {
+      if (prev === undefined || conn.speedBytesPerSec === undefined) {
+        return conn.speedBytesPerSec
+      }
+      const next = prev * 0.7 + conn.speedBytesPerSec * 0.3
+      return Number.isFinite(next) ? next : conn.speedBytesPerSec
+    })
+  }, [conn.speedBytesPerSec])
   const getStatusColor = (status: UploaderConnectionStatus) => {
     switch (status) {
       case UploaderConnectionStatus.Uploading:
@@ -103,7 +119,7 @@ export function ConnectionListItem({
 
       {conn.status === UploaderConnectionStatus.Uploading && (
         <div className="mt-2 flex items-center justify-between text-xs text-stone-500 dark:text-stone-400">
-          <span>Speed: {formatSpeed(conn.speedBytesPerSec)}</span>
+          <span>Speed: {formatSpeed(displaySpeed)}</span>
 
           <span>ETA: {formatETA(conn.etaSeconds)}</span>
         </div>

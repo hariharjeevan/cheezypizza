@@ -10,6 +10,7 @@ import type {
 } from '../../utils/streamingDownload'
 
 const PROGRESS_SAVE_INTERVAL = 4 * 1024 * 1024
+const ACK_BATCH_BYTES = 1024 * 1024
 
 export interface ChunkProcessorDeps {
   writers: Record<string, FileWriter>
@@ -39,6 +40,30 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
     onFileError,
   } = deps
 
+  const pendingAckBytes = new Map<string, { offset: number; bytes: number }>()
+
+  const flushAckIfNeeded = (
+    fileName: string,
+    offset: number,
+    bytesReceived: number,
+    force: boolean,
+  ): void => {
+    const entry = pendingAckBytes.get(fileName) ?? { offset, bytes: 0 }
+    entry.bytes += bytesReceived
+    entry.offset = offset
+    pendingAckBytes.set(fileName, entry)
+
+    if (!force && entry.bytes < ACK_BATCH_BYTES) return
+
+    safeSend({
+      type: MessageType.ChunkAck,
+      fileName,
+      offset: entry.offset,
+      bytesReceived: entry.bytes,
+    } as z.infer<typeof Message>)
+    pendingAckBytes.delete(fileName)
+  }
+
   return async function processChunk(
     message: z.infer<typeof ChunkMessage>,
   ): Promise<void> {
@@ -59,12 +84,7 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
         fileName,
         chunkOffset,
       })
-      safeSend({
-        type: MessageType.ChunkAck,
-        fileName,
-        offset: chunkOffset,
-        bytesReceived: chunk.byteLength,
-      } as z.infer<typeof Message>)
+      flushAckIfNeeded(fileName, chunkOffset, chunk.byteLength, true)
       return
     }
 
@@ -115,12 +135,7 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
           setBytesDownloaded((bd) => bd + chunkSize)
           setRotating(true)
 
-          safeSend({
-            type: MessageType.ChunkAck,
-            fileName,
-            offset: currentOffset,
-            bytesReceived: chunkSize,
-          } as z.infer<typeof Message>)
+          flushAckIfNeeded(fileName, currentOffset, chunkSize, false)
 
           if (!currentIsFinal) {
             const next = writer.pendingChunks.get(writer.nextExpectedOffset)
@@ -148,6 +163,7 @@ export function makeProcessChunk(deps: ChunkProcessorDeps) {
 
           writer.finalized = true
           writer.closed = true
+          flushAckIfNeeded(fileName, currentOffset, 0, true)
 
           // Truncate to exact size then close
           await writer.writable.write({
@@ -195,6 +211,29 @@ export function makeProcessChunkStreaming(deps: StreamingChunkProcessorDeps) {
     onFileError,
     bytesWrittenPerFile,
   } = deps
+  const pendingAckBytes = new Map<string, { offset: number; bytes: number }>()
+
+  const flushAckIfNeeded = (
+    fileName: string,
+    offset: number,
+    bytesReceived: number,
+    force: boolean,
+  ): void => {
+    const entry = pendingAckBytes.get(fileName) ?? { offset, bytes: 0 }
+    entry.bytes += bytesReceived
+    entry.offset = offset
+    pendingAckBytes.set(fileName, entry)
+
+    if (!force && entry.bytes < ACK_BATCH_BYTES) return
+
+    safeSend({
+      type: MessageType.ChunkAck,
+      fileName,
+      offset: entry.offset,
+      bytesReceived: entry.bytes,
+    } as z.infer<typeof Message>)
+    pendingAckBytes.delete(fileName)
+  }
 
   return async function processChunkStreaming(
     message: z.infer<typeof ChunkMessage>,
@@ -235,12 +274,7 @@ export function makeProcessChunkStreaming(deps: StreamingChunkProcessorDeps) {
     setBytesDownloaded((bd) => bd + chunkSize)
     setRotating(true)
 
-    safeSend({
-      type: MessageType.ChunkAck,
-      fileName,
-      offset: chunkOffset,
-      bytesReceived: chunkSize,
-    } as z.infer<typeof Message>)
+    flushAckIfNeeded(fileName, chunkOffset, chunkSize, isFinal)
 
     if (isFinal) {
       const fileInfo = filesInfo.find((f) => f.fileName === fileName)

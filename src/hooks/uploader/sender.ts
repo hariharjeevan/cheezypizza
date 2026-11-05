@@ -3,9 +3,11 @@ import { UploadedFile } from '../../types'
 import { getFileName } from '../../fs'
 import { Message, MessageType } from '../../messages'
 
-export const MAX_CHUNK_SIZE = 64 * 1024 // 64 KB chunks
-const HIGH_WATERMARK = 4 * 1024 * 1024 // pause when buffered amount is high
-const LOW_WATERMARK = 512 * 1024 // resume when buffered amount falls below this
+export const MAX_CHUNK_SIZE = 1024 * 1024 // 1 MB chunks
+const MIN_CHUNK_SIZE = 512 * 1024 // 512 KB minimum chunk size
+const HIGH_WATERMARK = 32 * 1024 * 1024 // pause when buffered amount is high
+const LOW_WATERMARK = 8 * 1024 * 1024 // resume only after the buffer drains substantially
+const ACK_WINDOW_BYTES = 16 * 1024 * 1024
 
 export function isFinalChunk(end: number, fileSize: number): boolean {
   return end === fileSize
@@ -100,6 +102,7 @@ export function runSendWindow(
   conn: DataConnection,
   files: UploadedFile[],
   state: SenderState,
+  ackedBytesRef?: { current: number },
 ): void {
   if (state.paused || state.finalChunkSent) return
   const dc = getRawDC(conn)
@@ -112,12 +115,12 @@ export function runSendWindow(
   if (dc.readyState === 'open') {
     const file = files.find((f) => getFileName(f) === state.currentFileName)
     if (!file) return
-    void sendLoop(conn, dc, file, files, state)
+    void sendLoop(conn, dc, file, files, state, ackedBytesRef)
   } else if (dc.readyState === 'connecting' && !state.dcWaitInProgress) {
     // DC is connecting, wait for it to open
     console.log('[Sender] DataChannel connecting, waiting for open...')
     state.dcWaitInProgress = true
-    void waitForDataChannelOpen(conn, files, state)
+    void waitForDataChannelOpen(conn, files, state, ackedBytesRef)
   } else if (dc.readyState === 'connecting') {
     // Already waiting, don't double-up
     console.log('[Sender] Already waiting for DataChannel to open')
@@ -128,10 +131,61 @@ export function runSendWindow(
   }
 }
 
+function getDynamicSendBudget(dc: RTCDataChannel): {
+  chunkSize: number
+  inFlightBytes: number
+} {
+  const buffered = dc.bufferedAmount ?? 0
+
+  if (buffered >= HIGH_WATERMARK * 0.8) {
+    return { chunkSize: MIN_CHUNK_SIZE, inFlightBytes: 512 * 1024 }
+  }
+  if (buffered >= HIGH_WATERMARK * 0.45) {
+    return { chunkSize: 512 * 1024, inFlightBytes: 2 * 1024 * 1024 }
+  }
+  if (buffered <= LOW_WATERMARK) {
+    return { chunkSize: MAX_CHUNK_SIZE, inFlightBytes: ACK_WINDOW_BYTES }
+  }
+
+  return { chunkSize: 1024 * 1024, inFlightBytes: 4 * 1024 * 1024 }
+}
+
+async function waitForAckWindow(
+  conn: DataConnection,
+  state: SenderState,
+  ackedBytesRef: { current: number } | undefined,
+  maxInFlightBytes: number,
+): Promise<void> {
+  const dc = getRawDC(conn)
+  if (!dc || !conn.open || state.paused || state.finalChunkSent) return
+
+  while (!state.paused && !state.finalChunkSent && conn.open) {
+    const acknowledged = ackedBytesRef?.current ?? state.nextOffset
+    const inFlight = Math.max(0, state.nextOffset - acknowledged)
+    if (inFlight < maxInFlightBytes) return
+
+    const buffered = dc.bufferedAmount ?? 0
+    if (buffered >= HIGH_WATERMARK) {
+      await new Promise<void>((resolve) => {
+        const onLow = () => {
+          dc.removeEventListener('bufferedamountlow', onLow)
+          resolve()
+        }
+        dc.bufferedAmountLowThreshold = LOW_WATERMARK
+        dc.addEventListener('bufferedamountlow', onLow, { once: true })
+      })
+      continue
+    }
+
+    await new Promise<void>((resolve) => setTimeout(resolve, 50))
+  }
+}
+
 async function waitForDataChannelOpen(
   conn: DataConnection,
   files: UploadedFile[],
   state: SenderState,
+  ackedBytesRef?: { current: number },
 ): Promise<void> {
   const dc = getRawDC(conn)
   if (!dc) {
@@ -142,7 +196,7 @@ async function waitForDataChannelOpen(
   // Already open
   if (dc.readyState === 'open') {
     state.dcWaitInProgress = false
-    runSendWindow(conn, files, state)
+    runSendWindow(conn, files, state, ackedBytesRef)
     return
   }
 
@@ -171,7 +225,7 @@ async function waitForDataChannelOpen(
       dc.removeEventListener('error', onError)
       console.log('[Sender] DataChannel opened, resuming send')
       state.dcWaitInProgress = false
-      runSendWindow(conn, files, state)
+      runSendWindow(conn, files, state, ackedBytesRef)
       resolve()
     }
 
@@ -196,9 +250,11 @@ async function sendLoop(
   file: UploadedFile,
   files: UploadedFile[],
   state: SenderState,
+  ackedBytesRef?: { current: number },
 ): Promise<void> {
   while (!state.paused && !state.finalChunkSent) {
-    if (dc.bufferedAmount >= HIGH_WATERMARK) {
+    const bufferedAmount = dc.bufferedAmount ?? 0
+    if (bufferedAmount >= HIGH_WATERMARK) {
       if (state.onBufferedAmountLow) {
         dc.removeEventListener('bufferedamountlow', state.onBufferedAmountLow)
       }
@@ -226,7 +282,24 @@ async function sendLoop(
       return
     }
 
-    const end = Math.min(file.size, state.nextOffset + MAX_CHUNK_SIZE)
+    if (state.nextOffset >= file.size) {
+      state.finalChunkSent = true
+      return
+    }
+
+    const { chunkSize, inFlightBytes } = getDynamicSendBudget(dc)
+    const acknowledged = ackedBytesRef?.current ?? state.nextOffset
+    const inFlight = Math.max(0, state.nextOffset - acknowledged)
+    if (inFlight >= inFlightBytes) {
+      await waitForAckWindow(conn, state, ackedBytesRef, inFlightBytes)
+      if (state.paused || state.finalChunkSent) return
+    }
+
+    const dynamicChunkSize = Math.min(
+      file.size - state.nextOffset,
+      Math.max(MIN_CHUNK_SIZE, chunkSize),
+    )
+    const end = Math.min(file.size, state.nextOffset + dynamicChunkSize)
     const final = isFinalChunk(end, file.size)
     const chunkOffset = state.nextOffset
 

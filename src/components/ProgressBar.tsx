@@ -1,7 +1,5 @@
 import React, { JSX, useEffect, useRef, useState } from 'react'
 
-const PROGRESS_TICK_MS = 250
-
 export default function ProgressBar({
   value,
   max,
@@ -9,29 +7,52 @@ export default function ProgressBar({
   value: number
   max: number
 }): JSX.Element {
+  const [displayValue, setDisplayValue] = useState(value)
   const valueRef = useRef(value)
+  const rafRef = useRef<number | null>(null)
+
   useEffect(() => {
     valueRef.current = value
-  })
-
-  const [displayValue, setDisplayValue] = useState(value)
+  }, [value])
 
   useEffect(() => {
+    const target = Math.min(Math.max(value, 0), max || value)
+
+    const step = () => {
+      const current = valueRef.current
+      const next = current + (target - current) * 0.18
+      const delta = Math.abs(target - next)
+
+      valueRef.current = next
+      setDisplayValue(next)
+
+      if (delta > 0.5) {
+        rafRef.current = requestAnimationFrame(step)
+      }
+    }
+
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current)
+    }
+
     if (value >= max) {
+      valueRef.current = max
       setDisplayValue(max)
       return
     }
 
-    const id = setInterval(() => {
-      setDisplayValue(valueRef.current)
-    }, PROGRESS_TICK_MS)
+    rafRef.current = requestAnimationFrame(step)
 
-    return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [max])
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current)
+      }
+    }
+  }, [value, max])
 
-  const percentage = max > 0 ? (displayValue / max) * 100 : 0
-  const isComplete = displayValue >= max
+  const clampedValue = Math.min(Math.max(displayValue, 0), max || displayValue)
+  const percentage = max > 0 ? (clampedValue / max) * 100 : 0
+  const isComplete = clampedValue >= max
 
   return (
     <div
