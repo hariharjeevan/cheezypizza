@@ -5,8 +5,11 @@ allowBuilds:
   unrs-resolver: true
 overrides:
   # Force patched releases for transitive vulnerable packages.
-  body-parser@^1.0.0: 1.20.6
-  body-parser@^2.0.0: 2.3.0
+  body-parser@^1.0.0: 1.20.9
+  body-parser@^2.0.0: 2.4.0
+  'qs@<6.16.1': 6.16.1
+  'glob@>=9.0.0 <14.0.2': 14.0.2
+  'minimatch@>=7.0.0 <11.0.1': 11.0.1
   postcss@^8.4.0: 8.5.28
   postcss@^8.5.0: 8.5.28
 minimumReleaseAgeExclude:
@@ -69,9 +72,28 @@ minimumReleaseAgeExclude:
   - qs@6.15.4
   - qs@6.16.0
   - vitest@4.1.11
+  - vitest@4.1.12
+  - '@vitest/coverage-v8@4.1.12'
   - '@vitest/mocker@4.1.11'
   - baseline-browser-mapping@2.11.0
   - sharp@0.35.4
   - js-yaml@4.3.2
+  - dompurify@3.4.16
+  - source-map-js@1.2.2
+  - proxy-addr@2.0.8
+  - tinypool@2.1.1
+  - tinypool@2.1.2
+  - sharp@0.35.5
+  - next@15.5.27
+  - vite@7.3.7
+  - '@vitest/mocker@4.1.12'
+  - next@15.5.28
+  - dompurify@3.4.17
+  - zod@4.6.6
+  - body-parser@1.20.9
+  - body-parser@2.4.0
+  - qs@6.16.1
+  - glob@14.0.2
+  - minimatch@11.0.1
 packages:
   - 'peerjs-server'
